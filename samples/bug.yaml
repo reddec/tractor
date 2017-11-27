@@ -1,0 +1,9 @@
+app: exit
+retry:
+  limit: 3
+  exceeded_event: exit_msg_missed
+fail_event: exit_failed
+args:
+  - 1
+listen: 
+  - greeting

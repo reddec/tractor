@@ -1,0 +1,6 @@
+app: bash
+args:
+  - '-c'
+  - 'cat - >> log.txt'
+listen:
+  - 'greeting'

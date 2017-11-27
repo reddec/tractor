@@ -1,0 +1,7 @@
+app: echo
+args:
+  - hi
+listen:
+  - 'hello'
+  - 'hi'
+event: greeting
