@@ -135,9 +135,9 @@ func monitor() {
 	idFmt := "% 37s"
 	sizeFmt := "% 6v"
 	retryFmt := "% 6v"
-	fmtStr := tmFmt + "  " + idFmt + "  % " + strconv.Itoa(mxFlow) + "s  %" + strconv.Itoa(mxEvent) + "s  %" + strconv.Itoa(mxService) + "s  %" + strconv.Itoa(mxService) + "s  %" + strconv.Itoa(mxTo) + "s  " + sizeFmt + "  " + retryFmt + "\n"
+	fmtStr := tmFmt + "  " + idFmt + "  %" + strconv.Itoa(mxEvent) + "s  %" + strconv.Itoa(mxService) + "s  %" + strconv.Itoa(mxService) + "s  %" + strconv.Itoa(mxTo) + "s  " + sizeFmt + "  " + retryFmt + "\n"
 	if !*monitorFull {
-		fmt.Printf(fmtStr, "TIME", "ID", "FLOW", "EVENT", "LAST", "FROM", "TO", "SIZE", "RETRY")
+		fmt.Printf(fmtStr, "TIME", "ID", "EVENT", "LAST", "FROM", "TO", "SIZE", "RETRY")
 	}
 
 	var eventsList []string
@@ -176,7 +176,7 @@ func monitor() {
 				retry, _ := strconv.Atoi(headers[tractor.RetryHeader])
 				from := headers[tractor.ServiceFromHeader]
 				last := headers[tractor.ServiceHeader]
-				txt := fmt.Sprintf(fmtStr, tm, id, mon.Flow, event, last, from, toList[event], len(body), retry)
+				txt := fmt.Sprintf(fmtStr, tm, id, event, last, from, toList[event], len(body), retry)
 				if !*monitorBW {
 					c := color.New()
 					if toList[event] == "" {

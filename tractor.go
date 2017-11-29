@@ -38,6 +38,10 @@ type Config struct {
 
 var allowedSymbols = regexp.MustCompile(`[^a-zA-Z\-\._0-9 \$@]+`)
 
+func NormalizeName(name string) string {
+	return allowedSymbols.ReplaceAllString(name, "")
+}
+
 func (c *Config) Run(message []byte, messageId, event string, headers map[string]string, ctx context.Context) ([]byte, error) {
 	cmd := exec.CommandContext(ctx, c.App, c.Args...)
 	for k, v := range c.Env {
