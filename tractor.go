@@ -44,7 +44,16 @@ func NormalizeName(name string) string {
 }
 
 func (c *Config) Run(message []byte, messageId, event string, headers map[string]string, ctx context.Context) ([]byte, error) {
-	cmd := exec.CommandContext(ctx, c.App, c.Args...)
+	app := c.App
+	if strings.HasPrefix(app, "."+string(filepath.Separator)) || strings.HasPrefix(app, ".."+string(filepath.Separator)) {
+		abs, err := filepath.Abs(filepath.Join(c.WorkDir, app))
+		if err != nil {
+			return nil, errors.Wrap(err, "get abs path to executable")
+		}
+		app = abs
+	}
+
+	cmd := exec.CommandContext(ctx, app, c.Args...)
 	for k, v := range c.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
