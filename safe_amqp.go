@@ -7,7 +7,6 @@ import (
 	"github.com/pkg/errors"
 	"log"
 	"net"
-	"fmt"
 )
 
 type SafeExchange struct {
