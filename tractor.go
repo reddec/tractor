@@ -75,7 +75,7 @@ func (c *Config) Run(message []byte, messageId, event string, headers map[string
 	cmd.Stdin = bytes.NewBuffer(message)
 	err := cmd.Run()
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, buffer.String())
 	}
 	return buffer.Bytes(), err
 }

@@ -158,12 +158,12 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 						Headers:   msg.Headers,
 						Timestamp: time.Now(),
 					})
-					if err == nil {
-						err = msg.Ack(false)
-					}
 					if err != nil {
 						break
 					}
+				}
+				if err == nil {
+					err = msg.Ack(false)
 				}
 			} else {
 				// no next hop
