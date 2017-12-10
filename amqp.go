@@ -160,6 +160,8 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 					})
 					if err == nil {
 						err = msg.Ack(false)
+					}
+					if err != nil {
 						break
 					}
 				}
