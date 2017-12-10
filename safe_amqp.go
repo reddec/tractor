@@ -21,33 +21,15 @@ func (m *SafeExchange) createExchange(ch *amqp.Channel) (error) {
 	return ch.ExchangeDeclare(m.ExchangeName, m.ExchangeType, true, false, false, false, nil)
 }
 
-func (m *SafeExchange) consumeMonitor(ctx context.Context, ch *amqp.Channel, monitoringQueue string, printer MonitorPrinter) error {
-	stream, err := ch.Consume(monitoringQueue, "", true, true, false, false, nil)
-	if err != nil {
-		errors.Wrap(err, "open consume monitor stream")
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			return ctx.Err()
-		case msg, ok := <-stream:
-			if !ok {
-				return errors.New("stream closed")
-			}
-			var headers = make(map[string]string)
-			for k, v := range msg.Headers {
-				headers[k] = fmt.Sprint(v)
-			}
-			printer(msg.Timestamp, msg.RoutingKey, msg.MessageId, msg.Body, headers)
-		}
-	}
-}
-
 func (m *SafeExchange) runWithConnection(ctx context.Context, conn *amqp.Connection) error {
 	for {
 		ch, err := conn.Channel()
 		if err != nil {
 			return errors.Wrap(err, "open channel")
+		}
+		err = ch.Qos(1, 0, true)
+		if err != nil {
+			return errors.Wrap(err, "failed set prefetch size")
 		}
 		err = m.createExchange(ch)
 		if err != nil {

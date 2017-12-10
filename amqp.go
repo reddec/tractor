@@ -234,6 +234,10 @@ func (c *Config) runWithConnection(ctx context.Context, conn *amqp.Connection) e
 		if err != nil {
 			return errors.Wrap(err, "open channel for "+c.Name)
 		}
+		err = ch.Qos(1, 0, true)
+		if err != nil {
+			return errors.Wrap(err, "failed set prefetch size")
+		}
 		err = c.Create(ch)
 		if err != nil {
 			log.Println("failed create infrastracture:", err)
