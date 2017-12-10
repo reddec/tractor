@@ -17,18 +17,19 @@ import (
 )
 
 type Config struct {
-	Flow      string            `yaml:"-"`                // from directory
-	Name      string            `yaml:"-"`                // from file name
-	WorkDir   string            `yaml:"-"`                // from directory
-	App       string            `yaml:"app"`              // required application executable (shell)
-	Args      []string          `yaml:"args"`             // application arguments
-	Event     string            `yaml:"event,omitempty"`  // generated event
-	Listen    []string          `yaml:"listen,omitempty"` // on what events will be triggered
-	Requeue   time.Duration     `yaml:"requeue"`          // Requeue delay
-	Reconnect time.Duration     `yaml:"reconnect"`        // Reconnect (re-create channel or re-dial) timeout
-	Connect   time.Duration     `yaml:"connect"`          // Connect timeout
-	Env       map[string]string `yaml:"env"`              // additional environment
-	Scale     int               `yaml:"scale"`            // how much instances has to be run
+	Flow      string            `yaml:"-"`                  // from directory
+	Name      string            `yaml:"-"`                  // from file name
+	WorkDir   string            `yaml:"-"`                  // from directory
+	App       string            `yaml:"app"`                // required application executable (shell)
+	Args      []string          `yaml:"args"`               // application arguments
+	Event     string            `yaml:"event,omitempty"`    // generated event
+	Multiple  bool              `yaml:"multiple,omitempty"` // each  non-empty line from output will be used as separate event
+	Listen    []string          `yaml:"listen,omitempty"`   // on what events will be triggered
+	Requeue   time.Duration     `yaml:"requeue"`            // Requeue delay
+	Reconnect time.Duration     `yaml:"reconnect"`          // Reconnect (re-create channel or re-dial) timeout
+	Connect   time.Duration     `yaml:"connect"`            // Connect timeout
+	Env       map[string]string `yaml:"env"`                // additional environment
+	Scale     int               `yaml:"scale"`              // how much instances has to be run
 	Retry struct {
 		Limit         int    `yaml:"limit"`          // Retries limit. By default - -1. Negative value means infinity
 		ExceededEvent string `yaml:"exceeded_event"` // Event that will be emitted when no more retries left

@@ -25,7 +25,8 @@ var (
 	from      = kingpin.Flag("from", "Path to directory with configurations files").Short('f').Default(".").Envar("TRACTOR_FROM").String()
 )
 var (
-	startCmd = kingpin.Command("start", "Start flow")
+	startCmd        = kingpin.Command("start", "Start flow")
+	startHttpServer = kingpin.Flag("http", "HTTP publish binding").Default("127.0.0.1:5040").String()
 )
 var (
 	rmCmd = kingpin.Command("rm", "Remove flow infrastructure")
@@ -402,6 +403,14 @@ func start() {
 				log.Println("service", i, cfg.Name, "finished. reason:", err)
 			}(i, cfg)
 		}
+	}
+
+	if *startHttpServer != "" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			tractor.RunHTTPApi(configs[0].Flow, *startHttpServer, configs[0].Reconnect, ctx, *brokerUrl)
+		}()
 	}
 
 	c := make(chan os.Signal, 2)

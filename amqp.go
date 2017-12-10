@@ -9,6 +9,7 @@ import (
 	"time"
 	"net"
 	"fmt"
+	"bytes"
 )
 
 const (
@@ -138,14 +139,29 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 			} else if c.Event != "" {
 				delete(msg.Headers, RetryHeader)
 				msg.Headers[ServiceFromHeader] = c.Name
-				err = ch.Publish(c.exchangeName(), c.Event, false, false, amqp.Publishing{
-					MessageId: msg.MessageId,
-					Body:      message,
-					Headers:   msg.Headers,
-					Timestamp: time.Now(),
-				})
-				if err == nil {
-					err = msg.Ack(false)
+				var parts [][]byte
+
+				if c.Multiple {
+					parts = bytes.Split(message, []byte("\n"))
+				} else {
+					parts = [][]byte{message}
+				}
+
+				for _, part := range parts {
+					if len(part) == 0 {
+						continue
+					}
+
+					err = ch.Publish(c.exchangeName(), c.Event, false, false, amqp.Publishing{
+						MessageId: msg.MessageId,
+						Body:      part,
+						Headers:   msg.Headers,
+						Timestamp: time.Now(),
+					})
+					if err == nil {
+						err = msg.Ack(false)
+						break
+					}
 				}
 			} else {
 				// no next hop
