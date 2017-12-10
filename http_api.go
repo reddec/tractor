@@ -89,6 +89,8 @@ func RunHTTPApi(flow, binding string, retry time.Duration, ctx context.Context, 
 	log.Println("HTTP API initialized")
 	<-ctx.Done()
 
-	srv.Shutdown(context.Background())
+	done, closer := context.WithTimeout(context.Background(), 5*time.Second)
+	defer closer()
+	srv.Shutdown(done)
 	wg.Wait()
 }

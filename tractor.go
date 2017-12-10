@@ -66,8 +66,8 @@ func (c *Config) Run(message []byte, messageId, event string, headers map[string
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
 	// add predefined
-	cmd.Env = append(cmd.Env, "MESSAGE_ID", messageId)
-	cmd.Env = append(cmd.Env, "EVENT", event)
+	cmd.Env = append(cmd.Env, "MESSAGE_ID="+messageId)
+	cmd.Env = append(cmd.Env, "EVENT="+event)
 
 	cmd.Dir = c.WorkDir
 	buffer := &bytes.Buffer{}
