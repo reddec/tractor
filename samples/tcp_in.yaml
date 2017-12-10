@@ -1,0 +1,6 @@
+app: nc
+args:
+  - '-l'
+  - '9001'
+stream: true
+event: greeting

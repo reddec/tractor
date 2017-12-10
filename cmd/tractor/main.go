@@ -426,9 +426,15 @@ func start() {
 			wg.Add(1)
 			go func(i int, cfg *tractor.Config) {
 				defer wg.Done()
-				log.Println("service", i, cfg.Name, "started")
-				err := cfg.RunWithReconnect(ctx, *brokerUrl)
-				log.Println("service", i, cfg.Name, "finished. reason:", err)
+				if cfg.Stream {
+					log.Println("stream #", i, cfg.Name, "started")
+					err := cfg.RunStreamPublisher(ctx, *brokerUrl)
+					log.Println("stream #", i, cfg.Name, "finished. reason:", err)
+				} else {
+					log.Println("service", i, cfg.Name, "started")
+					err := cfg.RunWithReconnect(ctx, *brokerUrl)
+					log.Println("service", i, cfg.Name, "finished. reason:", err)
+				}
 			}(i, cfg)
 		}
 	}

@@ -14,6 +14,8 @@ import (
 	"gopkg.in/yaml.v2"
 	"github.com/pkg/errors"
 	"strings"
+	"bufio"
+	"log"
 )
 
 type Config struct {
@@ -23,7 +25,8 @@ type Config struct {
 	App       string            `yaml:"app"`                // required application executable (shell)
 	Args      []string          `yaml:"args,omitempty"`     // application arguments
 	Event     string            `yaml:"event,omitempty"`    // generated event
-	Multiple  bool              `yaml:"multiple,omitempty"` // each  non-empty line from output will be used as separate event
+	Multiple  bool              `yaml:"multiple,omitempty"` // each non-empty line from output will be used as separate event. Each line - same MessageID
+	Stream    bool              `yaml:"stream,omitempty"`   // always start this application, no listen, only provides, each line is event, each line - new MessageID
 	Listen    []string          `yaml:"listen,omitempty"`   // on what events will be triggered
 	Requeue   time.Duration     `yaml:"requeue"`            // Requeue delay
 	Reconnect time.Duration     `yaml:"reconnect"`          // Reconnect (re-create channel or re-dial) timeout
@@ -71,13 +74,108 @@ func (c *Config) Run(message []byte, messageId, event string, headers map[string
 
 	cmd.Dir = c.WorkDir
 	buffer := &bytes.Buffer{}
-	cmd.Stdout = io.MultiWriter(os.Stderr, buffer)
+
+	logOutIn, logOutOut := io.Pipe()
+	defer logOutIn.Close()
+	defer logOutOut.Close()
+
+	logErrIn, logErrOut := io.Pipe()
+	defer logErrIn.Close()
+	defer logErrOut.Close()
+
+	logStream(c.Name+"-stdout", logOutIn)
+	logStream(c.Name+"-stderr", logErrIn)
+
+	cmd.Stdout = io.MultiWriter(logOutOut, buffer)
 	cmd.Stdin = bytes.NewBuffer(message)
+	cmd.Stderr = logErrOut
+
 	err := cmd.Run()
 	if err != nil {
 		return nil, errors.Wrap(err, buffer.String())
 	}
 	return buffer.Bytes(), err
+}
+
+func (c *Config) RunStream(ctx context.Context) (ch <-chan string) {
+	var output = make(chan string)
+	go func() {
+		defer close(output)
+		app := c.App
+		if strings.HasPrefix(app, "."+string(filepath.Separator)) || strings.HasPrefix(app, ".."+string(filepath.Separator)) {
+			abs, err := filepath.Abs(filepath.Join(c.WorkDir, app))
+			if err != nil {
+				log.Println(c.Name, "get abs path to executable error:", err)
+				return
+			}
+			app = abs
+		}
+
+		cmd := exec.CommandContext(ctx, app, c.Args...)
+		for k, v := range c.Env {
+			cmd.Env = append(cmd.Env, k+"="+v)
+		}
+		// copy current env
+		for _, e := range os.Environ() {
+			cmd.Env = append(cmd.Env, e)
+		}
+
+		cmd.Dir = c.WorkDir
+
+		logOutIn, logOutOut := io.Pipe()
+		defer logOutIn.Close()
+		defer logOutOut.Close()
+
+		logErrIn, logErrOut := io.Pipe()
+		defer logErrIn.Close()
+		defer logErrOut.Close()
+
+		streamIn, streamOut := io.Pipe()
+
+		logStream(c.Name+"-stdout", logOutIn)
+		logStream(c.Name+"-stderr", logErrIn)
+
+		cmd.Stdout = io.MultiWriter(logOutOut, streamOut)
+		cmd.Stderr = logErrOut
+		cmd.Stdin = os.Stdin // prevent apps close due to EOF
+
+		done := make(chan struct{})
+
+		go func() {
+			defer close(done)
+			bufr := bufio.NewReader(streamIn)
+			for {
+				data, err := bufr.ReadString('\n')
+				if len(data) != 0 {
+					select {
+					case output <- data:
+					case <-ctx.Done():
+						return
+					}
+				}
+				if err != nil {
+					log.Println("stream", c.Name, "failed read:", err)
+					break
+				}
+				select {
+				case <-ctx.Done():
+					return
+				default:
+
+				}
+			}
+		}()
+
+		err := cmd.Run()
+		streamOut.Close()
+		<-done
+		if err != nil {
+			log.Println(c.Name, "stream finished with error:", err)
+		} else {
+			log.Println("stream", c.Name, "stopped")
+		}
+	}()
+	return output
 }
 
 func (c *Config) Validate() error {
@@ -158,4 +256,23 @@ func LoadConfig(file string, validate bool) (*Config, error) {
 		err = cfg.Validate()
 	}
 	return &cfg, err
+}
+
+func logStream(prefix string, stream io.Reader) {
+	go func() {
+		bufr := bufio.NewReader(stream)
+		for {
+			data, err := bufr.ReadString('\n')
+			if len(data) > 0 && data[len(data)-1] == '\n' {
+				data = data[:len(data)-1]
+			}
+			if err != nil {
+				if len(data) != 0 {
+					log.Println("["+prefix+"]", data)
+				}
+				break
+			}
+			log.Println("["+prefix+"]", data)
+		}
+	}()
 }

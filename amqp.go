@@ -128,6 +128,13 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 			}
 			message, err := c.Run(msg.Body, msg.MessageId, msg.RoutingKey, headers, ctx)
 
+			select {
+			case <-ctx.Done():
+				return ctx.Err()
+			default:
+
+			}
+
 			if msg.Headers == nil {
 				msg.Headers = make(amqp.Table)
 			}

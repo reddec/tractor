@@ -80,3 +80,51 @@ func (m *SafeExchange) Run(ctx context.Context, url string) error {
 		}
 	}
 }
+
+type safeMessage struct {
+	key string
+	msg amqp.Publishing
+}
+
+func SafePublisher(retry time.Duration, exchangeName string, exchangeType string, url string, ctx context.Context) (func(topic string, msg amqp.Publishing), <-chan error) {
+	var last *safeMessage
+	var data = make(chan safeMessage)
+	var sf = &SafeExchange{
+		ExchangeName: exchangeName,
+		ExchangeType: exchangeType,
+		Retry:        retry,
+		Handler: func(ctx context.Context, ch *amqp.Channel) error {
+		LOOP:
+			for {
+				if last != nil {
+					err := ch.Publish(exchangeName, last.key, false, false, last.msg)
+					if err != nil {
+						return err
+					}
+					last = nil
+				}
+				select {
+				case m, ok := <-data:
+					if !ok {
+						break LOOP
+					}
+					last = &m
+				case <-ctx.Done():
+					return ctx.Err()
+				}
+			}
+			return nil
+		},
+	}
+	done := make(chan error, 1)
+	go func() {
+		defer close(done)
+		done <- sf.Run(ctx, url)
+	}()
+	return func(topic string, msg amqp.Publishing) {
+		select {
+		case data <- safeMessage{topic, msg}:
+		case <-ctx.Done():
+		}
+	}, done
+}
