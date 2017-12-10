@@ -18,12 +18,23 @@ import (
 	"github.com/twinj/uuid"
 	"github.com/fatih/color"
 	"time"
+	"gopkg.in/yaml.v2"
 )
 
 var (
 	brokerUrl = kingpin.Flag("broker", "Broker AMQP URL").Short('b').Default("amqp://guest:guest@localhost:5672").Envar("TRACTOR_BROKER").String()
 	from      = kingpin.Flag("from", "Path to directory with configurations files").Short('f').Default(".").Envar("TRACTOR_FROM").String()
 )
+
+var (
+	sampleCmd      = kingpin.Command("sample", "Make sample config for provided command")
+	sampleArgs     = sampleCmd.Arg("exec", "Exec and args").Required().Strings()
+	sampleListen   = sampleCmd.Flag("listen", "Listen events").Short('l').Strings()
+	sampleEvent    = sampleCmd.Flag("event", "Provide event").Short('e').String()
+	sampleEnv      = sampleCmd.Flag("env", "Custom env").Short('E').StringMap()
+	sampleMultiple = sampleCmd.Flag("multiple", "Marke output as multiple messages separated by \\n").Short('m').Bool()
+)
+
 var (
 	startCmd        = kingpin.Command("start", "Start flow")
 	startHttpServer = kingpin.Flag("http", "HTTP publish binding").Default("127.0.0.1:5040").String()
@@ -66,9 +77,26 @@ func main() {
 		pushEvent()
 	case monitorCmd.FullCommand():
 		monitor()
+	case sampleCmd.FullCommand():
+		sample()
 	default:
 		log.Println("unknown command:", v)
 	}
+}
+
+func sample() {
+	var cfg = tractor.DefaultConfig()
+	cfg.App = (*sampleArgs)[0]
+	cfg.Args = (*sampleArgs)[1:]
+	cfg.Listen = (*sampleListen)
+	cfg.Event = *sampleEvent
+	cfg.Multiple = *sampleMultiple
+	cfg.Env = *sampleEnv
+	data, err := yaml.Marshal(cfg)
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(data))
 }
 
 func monitor() {

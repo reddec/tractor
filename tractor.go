@@ -21,20 +21,20 @@ type Config struct {
 	Name      string            `yaml:"-"`                  // from file name
 	WorkDir   string            `yaml:"-"`                  // from directory
 	App       string            `yaml:"app"`                // required application executable (shell)
-	Args      []string          `yaml:"args"`               // application arguments
+	Args      []string          `yaml:"args,omitempty"`     // application arguments
 	Event     string            `yaml:"event,omitempty"`    // generated event
 	Multiple  bool              `yaml:"multiple,omitempty"` // each  non-empty line from output will be used as separate event
 	Listen    []string          `yaml:"listen,omitempty"`   // on what events will be triggered
 	Requeue   time.Duration     `yaml:"requeue"`            // Requeue delay
 	Reconnect time.Duration     `yaml:"reconnect"`          // Reconnect (re-create channel or re-dial) timeout
 	Connect   time.Duration     `yaml:"connect"`            // Connect timeout
-	Env       map[string]string `yaml:"env"`                // additional environment
+	Env       map[string]string `yaml:"env,omitempty"`      // additional environment
 	Scale     int               `yaml:"scale"`              // how much instances has to be run
 	Retry struct {
-		Limit         int    `yaml:"limit"`          // Retries limit. By default - -1. Negative value means infinity
-		ExceededEvent string `yaml:"exceeded_event"` // Event that will be emitted when no more retries left
+		Limit         int    `yaml:"limit"`                    // Retries limit. By default - -1. Negative value means infinity
+		ExceededEvent string `yaml:"exceeded_event,omitempty"` // Event that will be emitted when no more retries left
 	} `yaml:"retry"`
-	FailEvent string `yaml:"fail_event"` // Event that will be emitted when application exited with non-zero code
+	FailEvent string `yaml:"fail_event,omitempty"` // Event that will be emitted when application exited with non-zero code
 }
 
 var allowedSymbols = regexp.MustCompile(`[^a-zA-Z\-\._0-9 \$@]+`)
@@ -104,6 +104,17 @@ func GetFlowFromDir(dirName string) string {
 	return allowedSymbols.ReplaceAllString(filepath.Base(abs), "")
 }
 
+func DefaultConfig() Config {
+	var cfg Config
+	// Default values
+	cfg.Requeue = 10 * time.Second
+	cfg.Reconnect = 15 * time.Second
+	cfg.Connect = 30 * time.Second
+	cfg.Retry.Limit = -1
+	cfg.Scale = 1
+	return cfg
+}
+
 func LoadConfig(file string, validate bool) (*Config, error) {
 	if file == "" {
 		return nil, errors.New("empty filename")
@@ -117,13 +128,7 @@ func LoadConfig(file string, validate bool) (*Config, error) {
 		// really, I don't know when it will be
 		return nil, errors.Wrap(err, "get asb path")
 	}
-	var cfg Config
-	// Default values
-	cfg.Requeue = 10 * time.Second
-	cfg.Reconnect = 15 * time.Second
-	cfg.Connect = 30 * time.Second
-	cfg.Retry.Limit = -1
-	cfg.Scale = 1
+	var cfg = DefaultConfig()
 
 	err = yaml.Unmarshal(data, &cfg)
 	if err != nil {
