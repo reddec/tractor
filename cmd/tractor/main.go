@@ -32,7 +32,18 @@ var (
 	sampleListen   = sampleCmd.Flag("listen", "Listen events").Short('l').Strings()
 	sampleEvent    = sampleCmd.Flag("event", "Provide event").Short('e').String()
 	sampleEnv      = sampleCmd.Flag("env", "Custom env").Short('E').StringMap()
-	sampleMultiple = sampleCmd.Flag("multiple", "Marke output as multiple messages separated by \\n").Short('m').Bool()
+	sampleMultiple = sampleCmd.Flag("multiple", "Mark output as multiple messages separated by \\n").Short('m').Bool()
+)
+
+var (
+	runCmd      = kingpin.Command("run", "Run single instance of service in flow")
+	runArgs     = runCmd.Arg("exec", "Exec and args").Required().Strings()
+	runListen   = runCmd.Flag("listen", "Listen events").Short('l').Strings()
+	runEvent    = runCmd.Flag("event", "Provide event").Short('e').String()
+	runMultiple = runCmd.Flag("multiple", "Mark output as multiple messages separated by \\n").Short('m').Bool()
+	runFlow     = runCmd.Flag("flow", "Flow name").Short('F').Default("tractor-run").Envar("FLOW_NAME").String()
+	runName     = runCmd.Flag("name", "Application name").Short('n').Envar("APP_NAME").Required().String()
+	runStream   = runCmd.Flag("stream", "Always start this application, no listen, only provides, each line is event, each line - new MessageID").Short('s').Bool()
 )
 
 var (
@@ -79,9 +90,48 @@ func main() {
 		monitor()
 	case sampleCmd.FullCommand():
 		sample()
+	case runCmd.FullCommand():
+		run()
 	default:
 		log.Println("unknown command:", v)
 	}
+}
+
+func run() {
+	var cfg = tractor.DefaultConfig()
+	cfg.App = (*runArgs)[0]
+	cfg.Args = (*runArgs)[1:]
+	cfg.Listen = (*runListen)
+	cfg.Event = *runEvent
+	cfg.Multiple = *runMultiple
+	cfg.Flow = *runFlow
+	cfg.Stream = *runStream
+	cfg.Name = *runName
+
+	ctx, closer := context.WithCancel(context.Background())
+	defer closer()
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if cfg.Stream {
+			log.Println("stream", cfg.Name, "started")
+			err := cfg.RunStreamPublisher(ctx, *brokerUrl)
+			log.Println("stream", cfg.Name, "finished. reason:", err)
+		} else {
+			log.Println("service", cfg.Name, "started")
+			err := cfg.RunWithReconnect(ctx, *brokerUrl)
+			log.Println("service", cfg.Name, "finished. reason:", err)
+		}
+	}()
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-c
+		closer()
+	}()
+
+	<-done
 }
 
 func sample() {
