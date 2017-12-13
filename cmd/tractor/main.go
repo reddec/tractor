@@ -114,6 +114,14 @@ func call() {
 	}
 	ctx, closer := context.WithTimeout(context.Background(), *callTimeout)
 	defer closer()
+
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-c
+		closer()
+	}()
+
 	data, err = tractor.Call(*brokerUrl, *callFlow, *callEvent, data, ctx)
 	if err != nil {
 		log.Fatal("failed wait for reply:", err)
