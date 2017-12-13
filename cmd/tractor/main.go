@@ -19,6 +19,7 @@ import (
 	"github.com/fatih/color"
 	"time"
 	"gopkg.in/yaml.v2"
+	"bufio"
 )
 
 var (
@@ -44,13 +45,15 @@ var (
 	runFlow     = runCmd.Flag("flow", "Flow name").Short('F').Default("tractor-run").Envar("FLOW_NAME").String()
 	runName     = runCmd.Flag("name", "Application name").Short('n').Envar("APP_NAME").Required().String()
 	runStream   = runCmd.Flag("stream", "Always start this application, no listen, only provides, each line is event, each line - new MessageID").Short('s').Bool()
+	runRetries  = runCmd.Flag("retries", "Maximum count of retries").Short('r').Default("-1").Int()
 )
 
 var (
-	callCmd     = kingpin.Command("call", "Send event and wait for reply")
-	callFlow    = callCmd.Flag("flow", "Flow name").Short('F').Default("tractor-run").Envar("FLOW_NAME").String()
-	callEvent   = callCmd.Arg("exec", "Event/method name").Envar("EVENT").Required().String()
-	callTimeout = callCmd.Flag("timeout", "Call timeout").Envar("TIMEOUT").Default("30s").Duration()
+	callCmd         = kingpin.Command("call", "Send event and wait for reply")
+	callFlow        = callCmd.Flag("flow", "Flow name").Short('F').Default("tractor-run").Envar("FLOW_NAME").String()
+	callEvent       = callCmd.Arg("exec", "Event/method name").Envar("EVENT").Required().String()
+	callTimeout     = callCmd.Flag("timeout", "Call timeout").Short('t').Envar("TIMEOUT").Default("30s").Duration()
+	callInteractive = callCmd.Flag("interactive", "Read line as single message").Short('i').Envar("INTERACTIVE").Bool()
 )
 
 var (
@@ -108,25 +111,50 @@ func main() {
 }
 
 func call() {
-	data, err := ioutil.ReadAll(os.Stdin)
-	if err != nil {
-		log.Fatal("read:", err)
+	var data []byte
+	var err error
+	if !*callInteractive {
+		data, err = ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			log.Fatal("read:", err)
+		}
 	}
-	ctx, closer := context.WithTimeout(context.Background(), *callTimeout)
+
+	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
+
+	session, err := tractor.BindSession(*brokerUrl, *callFlow, *callEvent, *callTimeout, ctx)
+	if err != nil {
+		log.Fatal("failed create session: ", err)
+	}
+	defer session.Close()
 
 	c := make(chan os.Signal, 2)
 	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
 		<-c
 		closer()
+		os.Stdin.Close()
 	}()
 
-	data, err = tractor.Call(*brokerUrl, *callFlow, *callEvent, data, ctx)
-	if err != nil {
-		log.Fatal("failed wait for reply:", err)
+	if *callInteractive {
+		reader := bufio.NewScanner(os.Stdin)
+		for reader.Scan() {
+			data = reader.Bytes()
+			data, err = session.Invoke(data, *callTimeout, ctx)
+			if err != nil {
+				log.Fatal("failed wait for reply:", err)
+			}
+			os.Stdout.Write(data)
+		}
+	} else {
+		data, err = session.Invoke(data, *callTimeout, ctx)
+		if err != nil {
+			log.Fatal("failed wait for reply:", err)
+		}
+		os.Stdout.Write(data)
 	}
-	os.Stdout.Write(data)
+
 }
 
 func run() {
@@ -139,6 +167,7 @@ func run() {
 	cfg.Flow = *runFlow
 	cfg.Stream = *runStream
 	cfg.Name = *runName
+	cfg.Retry.Limit = *runRetries
 
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()

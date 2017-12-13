@@ -107,10 +107,6 @@ func (c *Config) Create(ch *amqp.Channel) error {
 	return nil
 }
 
-func isCall(msg *amqp.Delivery) bool {
-	return msg.ReplyTo != "" && msg.CorrelationId != ""
-}
-
 func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 	stream, err := ch.Consume(c.queueName(), "", false, false, false, false, nil)
 	if err != nil {
@@ -124,7 +120,6 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 			if !ok {
 				return errors.New("stream closed")
 			}
-			log.Println("got", c.Name, msg.MessageId)
 
 			var headers = make(map[string]string)
 			for k, v := range msg.Headers {
