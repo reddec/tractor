@@ -47,6 +47,13 @@ var (
 )
 
 var (
+	callCmd     = kingpin.Command("call", "Send event and wait for reply")
+	callFlow    = callCmd.Flag("flow", "Flow name").Short('F').Default("tractor-run").Envar("FLOW_NAME").String()
+	callEvent   = callCmd.Arg("exec", "Event/method name").Envar("EVENT").Required().String()
+	callTimeout = callCmd.Flag("timeout", "Call timeout").Envar("TIMEOUT").Default("30s").Duration()
+)
+
+var (
 	startCmd        = kingpin.Command("start", "Start flow")
 	startHttpServer = kingpin.Flag("http", "HTTP publish binding").Default("127.0.0.1:5040").String()
 )
@@ -75,6 +82,7 @@ var (
 )
 
 func main() {
+	log.SetPrefix("[tractor] ")
 	log.SetOutput(os.Stderr)
 	v := kingpin.Parse()
 	switch  v {
@@ -92,9 +100,25 @@ func main() {
 		sample()
 	case runCmd.FullCommand():
 		run()
+	case callCmd.FullCommand():
+		call()
 	default:
 		log.Println("unknown command:", v)
 	}
+}
+
+func call() {
+	data, err := ioutil.ReadAll(os.Stdin)
+	if err != nil {
+		log.Fatal("read:", err)
+	}
+	ctx, closer := context.WithTimeout(context.Background(), *callTimeout)
+	defer closer()
+	data, err = tractor.Call(*brokerUrl, *callFlow, *callEvent, data, ctx)
+	if err != nil {
+		log.Fatal("failed wait for reply:", err)
+	}
+	os.Stdout.Write(data)
 }
 
 func run() {

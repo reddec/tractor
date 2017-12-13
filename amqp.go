@@ -107,6 +107,10 @@ func (c *Config) Create(ch *amqp.Channel) error {
 	return nil
 }
 
+func isCall(msg *amqp.Delivery) bool {
+	return msg.ReplyTo != "" && msg.CorrelationId != ""
+}
+
 func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 	stream, err := ch.Consume(c.queueName(), "", false, false, false, false, nil)
 	if err != nil {
@@ -139,16 +143,17 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 				msg.Headers = make(amqp.Table)
 			}
 			msg.Headers[ServiceHeader] = c.Name
+			replyRequired := isCall(&msg)
 
 			if err != nil {
 				log.Println(c.Name, "failed:", err)
 				err = c.runFailed(ch, msg, headers, err)
-			} else if c.Event != "" {
+			} else if c.Event != "" || replyRequired {
 				delete(msg.Headers, RetryHeader)
 				msg.Headers[ServiceFromHeader] = c.Name
 				var parts [][]byte
 
-				if c.Multiple {
+				if c.Multiple && !replyRequired {
 					parts = bytes.Split(message, []byte("\n"))
 				} else {
 					parts = [][]byte{message}
@@ -159,12 +164,21 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 						continue
 					}
 
-					err = ch.Publish(c.exchangeName(), c.Event, false, false, amqp.Publishing{
+					pub := amqp.Publishing{
 						MessageId: msg.MessageId,
 						Body:      part,
 						Headers:   msg.Headers,
 						Timestamp: time.Now(),
-					})
+					}
+
+					if replyRequired {
+						log.Println("reply to", msg.ReplyTo)
+						pub.CorrelationId = msg.CorrelationId
+						err = ch.Publish("", msg.ReplyTo, false, false, pub)
+					} else {
+						err = ch.Publish(c.exchangeName(), c.Event, false, false, pub)
+					}
+
 					if err != nil {
 						break
 					}
