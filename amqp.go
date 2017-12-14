@@ -219,11 +219,13 @@ func (c *Config) runFailed(ch *amqp.Channel, msg amqp.Delivery, headers map[stri
 	// requeue ?
 	if c.Retry.Limit < 0 || retries < c.Retry.Limit {
 		err = ch.Publish(c.requeueExchangeName(), msg.RoutingKey, false, false, amqp.Publishing{
-			MessageId:  msg.MessageId,
-			Body:       msg.Body,
-			Headers:    msg.Headers,
-			Expiration: strconv.FormatInt(int64(c.Requeue/time.Millisecond), 10),
-			Timestamp:  time.Now(),
+			MessageId:     msg.MessageId,
+			Body:          msg.Body,
+			Headers:       msg.Headers,
+			Expiration:    strconv.FormatInt(int64(c.Requeue/time.Millisecond), 10),
+			Timestamp:     time.Now(),
+			ReplyTo:       msg.ReplyTo,
+			CorrelationId: msg.CorrelationId,
 		})
 	} else if c.Retry.ExceededEvent != "" {
 		// notify that retries limit exceeded as normal event

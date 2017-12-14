@@ -32,7 +32,11 @@ type Config struct {
 	Reconnect time.Duration     `yaml:"reconnect"`          // Reconnect (re-create channel or re-dial) timeout
 	Connect   time.Duration     `yaml:"connect"`            // Connect timeout
 	Env       map[string]string `yaml:"env,omitempty"`      // additional environment
-	Scale     int               `yaml:"scale"`              // how much instances has to be run
+	Limits struct {
+		ExecutionTime time.Duration `yaml:"execution_time,omitempty"` // Maximum execution time
+		GracefulTime  time.Duration `yaml:"graceful_time,omitempty"`  // Graceful delay before hard kill of process
+	} `yaml:"limits,omitempty"`
+	Scale int `yaml:"scale"` // how much instances has to be run
 	Retry struct {
 		Limit         int    `yaml:"limit"`                    // Retries limit. By default - -1. Negative value means infinity
 		ExceededEvent string `yaml:"exceeded_event,omitempty"` // Event that will be emitted when no more retries left
@@ -48,6 +52,13 @@ func NormalizeName(name string) string {
 
 func (c *Config) Run(message []byte, messageId, event string, headers map[string]string, ctx context.Context) ([]byte, error) {
 	app := c.App
+
+	if c.Limits.ExecutionTime != 0 {
+		tctx, cls := context.WithTimeout(ctx, c.Limits.ExecutionTime)
+		defer cls()
+		ctx = tctx
+	}
+
 	if strings.HasPrefix(app, "."+string(filepath.Separator)) || strings.HasPrefix(app, ".."+string(filepath.Separator)) {
 		abs, err := filepath.Abs(filepath.Join(c.WorkDir, app))
 		if err != nil {
@@ -56,7 +67,8 @@ func (c *Config) Run(message []byte, messageId, event string, headers map[string
 		app = abs
 	}
 
-	cmd := exec.CommandContext(ctx, app, c.Args...)
+	cmd := exec.Command(app, c.Args...)
+	setupCmdFlags(cmd)
 	for k, v := range c.Env {
 		cmd.Env = append(cmd.Env, k+"="+v)
 	}
@@ -90,7 +102,7 @@ func (c *Config) Run(message []byte, messageId, event string, headers map[string
 	cmd.Stdin = bytes.NewBuffer(message)
 	cmd.Stderr = logErrOut
 
-	err := cmd.Run()
+	err := runWithContext(cmd, ctx, 2*time.Second)
 	if err != nil {
 		return nil, errors.Wrap(err, buffer.String())
 	}
@@ -219,6 +231,7 @@ func DefaultConfig() Config {
 	cfg.Connect = 30 * time.Second
 	cfg.Retry.Limit = -1
 	cfg.Scale = 1
+	cfg.Limits.GracefulTime = 2 * time.Second
 	return cfg
 }
 

@@ -37,15 +37,17 @@ var (
 )
 
 var (
-	runCmd      = kingpin.Command("run", "Run single instance of service in flow")
-	runArgs     = runCmd.Arg("exec", "Exec and args").Required().Strings()
-	runListen   = runCmd.Flag("listen", "Listen events").Short('l').Strings()
-	runEvent    = runCmd.Flag("event", "Provide event").Short('e').String()
-	runMultiple = runCmd.Flag("multiple", "Mark output as multiple messages separated by \\n").Short('m').Bool()
-	runFlow     = runCmd.Flag("flow", "Flow name").Short('F').Default("tractor-run").Envar("FLOW_NAME").String()
-	runName     = runCmd.Flag("name", "Application name").Short('n').Envar("APP_NAME").Required().String()
-	runStream   = runCmd.Flag("stream", "Always start this application, no listen, only provides, each line is event, each line - new MessageID").Short('s').Bool()
-	runRetries  = runCmd.Flag("retries", "Maximum count of retries").Short('r').Default("-1").Int()
+	runCmd           = kingpin.Command("run", "Run single instance of service in flow")
+	runArgs          = runCmd.Arg("exec", "Exec and args").Required().Strings()
+	runListen        = runCmd.Flag("listen", "Listen events").Short('l').Strings()
+	runEvent         = runCmd.Flag("event", "Provide event").Short('e').String()
+	runMultiple      = runCmd.Flag("multiple", "Mark output as multiple messages separated by \\n").Short('m').Bool()
+	runFlow          = runCmd.Flag("flow", "Flow name").Short('F').Default("tractor-run").Envar("FLOW_NAME").String()
+	runName          = runCmd.Flag("name", "Application name").Short('n').Envar("APP_NAME").Required().String()
+	runStream        = runCmd.Flag("stream", "Always start this application, no listen, only provides, each line is event, each line - new MessageID").Short('s').Bool()
+	runRetries       = runCmd.Flag("retries", "Maximum count of retries").Short('r').Default("-1").Int()
+	runLimitExecTime = runCmd.Flag("limit-exec-time", "Limit maximum execution time").Envar("LIMIT_EXEC_TIME").Duration()
+	runGracefulTime  = runCmd.Flag("limit-graceful-time", "Limit maximum graceful delay before termination").Default("3s").Envar("LIMIT_GRACEFUL_TIME").Duration()
 )
 
 var (
@@ -168,6 +170,8 @@ func run() {
 	cfg.Stream = *runStream
 	cfg.Name = *runName
 	cfg.Retry.Limit = *runRetries
+	cfg.Limits.ExecutionTime = *runLimitExecTime
+	cfg.Limits.GracefulTime = *runGracefulTime
 
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
