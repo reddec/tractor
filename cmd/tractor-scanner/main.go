@@ -15,18 +15,28 @@ import (
 	"database/sql"
 	"github.com/lib/pq"
 	"strconv"
+	"fmt"
 )
+
+var VERSION = "dev"
 
 var config struct {
 	BrokerPool   utils.BrokerPool   `group:"Broker configuration"`
 	DatabasePool utils.DatabasePool `group:"Database configuration"`
 	Monitor      tractor.Monitor    `group:"Monitoring configuration"`
+	ShowVersion  bool               `long:"version" description:"Show version and exit"`
 }
 
 func main() {
-	_, err := flags.ParseArgs(&config, os.Args)
+
+	_, err := flags.Parse(&config)
 
 	if err != nil {
+		return
+	}
+
+	if config.ShowVersion {
+		fmt.Println(VERSION)
 		return
 	}
 

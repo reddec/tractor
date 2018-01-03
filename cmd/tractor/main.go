@@ -23,6 +23,8 @@ import (
 	"github.com/reddec/tractor/utils"
 )
 
+var VERSION = "dev"
+
 var (
 	brokerUrl = kingpin.Flag("broker", "Broker AMQP URL").Short('b').Default("amqp://guest:guest@localhost:5672").Envar("TRACTOR_BROKER").Strings()
 	from      = kingpin.Flag("from", "Path to directory with configurations files").Short('f').Default(".").Envar("TRACTOR_FROM").String()
@@ -88,6 +90,7 @@ var (
 )
 
 func main() {
+	kingpin.CommandLine.Version(VERSION).Name = "tractor"
 	log.SetPrefix("[tractor] ")
 	log.SetOutput(os.Stderr)
 	v := kingpin.Parse()
