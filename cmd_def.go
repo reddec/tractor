@@ -2,7 +2,10 @@
 
 package tractor
 
-import "os/exec"
+import (
+	"os/exec"
+	"syscall"
+)
 
 func setupCmdFlags(cmd *exec.Cmd) {
 

@@ -2,6 +2,8 @@
 
 Not very cute, but powerful system for dirty task ;-)
 
+Supports multi-broker and multi-db fail-over
+
 (README is in progress)
 
 ## Overview
