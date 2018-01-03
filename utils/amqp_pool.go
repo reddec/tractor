@@ -11,9 +11,9 @@ import (
 )
 
 type BrokerPool struct {
-	URLs             []string
-	ConnectTimeout   time.Duration
-	ReconnectTimeout time.Duration
+	URLs             []string      `long:"broker-url" short:"b" description:"Broker connection string" env:"BROKER_URL" default:"amqp://guest:guest@localhost:5672/"`
+	ConnectTimeout   time.Duration `long:"connect-timeout" description:"Connection timeout" default:"20s"`
+	ReconnectTimeout time.Duration `long:"reconnect-timeout" description:"Delay between connections attempts" default:"5s"`
 	offset           int
 }
 
@@ -28,7 +28,7 @@ func (bp *BrokerPool) TryOpenConnection(ctx context.Context) (*amqp.Connection, 
 		},
 	})
 	if err != nil {
-		return nil, errors.Wrap(err, "connect to broker")
+		return nil, errors.Wrap(err, "connect to broker "+bp.URLs[bp.offset])
 	}
 	return conn, nil
 }
