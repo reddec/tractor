@@ -12,219 +12,176 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
-	"github.com/lib/pq"
 )
 
-// TractorEvent represents a row from '"public"."tractor_events"'.
-type TractorEvent struct {
-	ID          int64          `json:"id"`           // id
-	Flow        string         `json:"flow"`         // flow
-	EventID     sql.NullString `json:"event_id"`     // event_id
-	Event       string         `json:"event"`        // event
-	EventStamp  pq.NullTime    `json:"event_stamp"`  // event_stamp
-	Source      sql.NullString `json:"source"`       // source
-	Payload     []byte         `json:"payload"`      // payload
-	CreatedAt   time.Time      `json:"created_at"`   // created_at
-	FromService sql.NullString `json:"from_service"` // from_service
-	LastService sql.NullString `json:"last_service"` // last_service
-	LastError   sql.NullString `json:"last_error"`   // last_error
-	LastRetry   sql.NullInt64  `json:"last_retry"`   // last_retry
-	Retry       sql.NullInt64  `json:"retry"`        // retry
+// TractorResult represents a row from '"public"."tractor_result"'.
+type TractorResult struct {
+	ID            int64          `json:"id"`              // id
+	Event         string         `json:"event"`           // event
+	EventID       string         `json:"event_id"`        // event_id
+	ParentEventID sql.NullString `json:"parent_event_id"` // parent_event_id
+	StartedAt     time.Time      `json:"started_at"`      // started_at
+	Input         []byte         `json:"input"`           // input
+	FinishedAt    time.Time      `json:"finished_at"`     // finished_at
+	Output        []byte         `json:"output"`          // output
+	OutputEventID string         `json:"output_event_id"` // output_event_id
+	JSONHeaders   string         `json:"json_headers"`    // json_headers
+	Err           sql.NullString `json:"err"`             // err
 
 	// xo fields
 	_exists, _deleted bool
 }
 
-// Exists determines if the TractorEvent exists in the database.
-func (te *TractorEvent) Exists() bool {
-	return te._exists
+// Exists determines if the TractorResult exists in the database.
+func (tr *TractorResult) Exists() bool {
+	return tr._exists
 }
 
-// Deleted provides information if the TractorEvent has been deleted from the database.
-func (te *TractorEvent) Deleted() bool {
-	return te._deleted
+// Deleted provides information if the TractorResult has been deleted from the database.
+func (tr *TractorResult) Deleted() bool {
+	return tr._deleted
 }
 
-// Insert inserts the TractorEvent to the database.
-func (te *TractorEvent) Insert(db XODB) error {
+// Insert inserts the TractorResult to the database.
+func (tr *TractorResult) Insert(db XODB) error {
 	var err error
 
 	// if already exist, bail
-	if te._exists {
+	if tr._exists {
 		return errors.New("insert failed: already exists")
 	}
 
 	// sql insert query, primary key provided by sequence
-	const sqlstr = `INSERT INTO "public"."tractor_events" (` +
-		`"flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry"` +
+	const sqlstr = `INSERT INTO "public"."tractor_result" (` +
+		`"event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
 		`) VALUES (` +
-		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12` +
+		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10` +
 		`) RETURNING "id"`
 
 	// run query
-	XOLog(sqlstr, te.Flow, te.EventID, te.Event, te.EventStamp, te.Source, te.Payload, te.CreatedAt, te.FromService, te.LastService, te.LastError, te.LastRetry, te.Retry)
-	err = db.QueryRow(sqlstr, te.Flow, te.EventID, te.Event, te.EventStamp, te.Source, te.Payload, te.CreatedAt, te.FromService, te.LastService, te.LastError, te.LastRetry, te.Retry).Scan(&te.ID)
+	XOLog(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err)
+	err = db.QueryRow(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err).Scan(&tr.ID)
 	if err != nil {
 		return err
 	}
 
 	// set existence
-	te._exists = true
+	tr._exists = true
 
 	return nil
 }
 
-// Update updates the TractorEvent in the database.
-func (te *TractorEvent) Update(db XODB) error {
+// Update updates the TractorResult in the database.
+func (tr *TractorResult) Update(db XODB) error {
 	var err error
 
 	// if doesn't exist, bail
-	if !te._exists {
+	if !tr._exists {
 		return errors.New("update failed: does not exist")
 	}
 
 	// if deleted, bail
-	if te._deleted {
+	if tr._deleted {
 		return errors.New("update failed: marked for deletion")
 	}
 
 	// sql query
-	const sqlstr = `UPDATE "public"."tractor_events" SET (` +
-		`"flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry"` +
+	const sqlstr = `UPDATE "public"."tractor_result" SET (` +
+		`"event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
 		`) = ( ` +
-		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12` +
-		`) WHERE "id" = $13`
+		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10` +
+		`) WHERE "id" = $11`
 
 	// run query
-	XOLog(sqlstr, te.Flow, te.EventID, te.Event, te.EventStamp, te.Source, te.Payload, te.CreatedAt, te.FromService, te.LastService, te.LastError, te.LastRetry, te.Retry, te.ID)
-	_, err = db.Exec(sqlstr, te.Flow, te.EventID, te.Event, te.EventStamp, te.Source, te.Payload, te.CreatedAt, te.FromService, te.LastService, te.LastError, te.LastRetry, te.Retry, te.ID)
+	XOLog(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err, tr.ID)
+	_, err = db.Exec(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err, tr.ID)
 	return err
 }
 
-// Save saves the TractorEvent to the database.
-func (te *TractorEvent) Save(db XODB) error {
-	if te.Exists() {
-		return te.Update(db)
+// Save saves the TractorResult to the database.
+func (tr *TractorResult) Save(db XODB) error {
+	if tr.Exists() {
+		return tr.Update(db)
 	}
 
-	return te.Insert(db)
+	return tr.Insert(db)
 }
 
-// Upsert performs an upsert for TractorEvent.
+// Upsert performs an upsert for TractorResult.
 //
 // NOTE: PostgreSQL 9.5+ only
-func (te *TractorEvent) Upsert(db XODB) error {
+func (tr *TractorResult) Upsert(db XODB) error {
 	var err error
 
 	// if already exist, bail
-	if te._exists {
+	if tr._exists {
 		return errors.New("insert failed: already exists")
 	}
 
 	// sql query
-	const sqlstr = `INSERT INTO "public"."tractor_events" (` +
-		`"id", "flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry"` +
+	const sqlstr = `INSERT INTO "public"."tractor_result" (` +
+		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
 		`) VALUES (` +
-		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13` +
+		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11` +
 		`) ON CONFLICT ("id") DO UPDATE SET (` +
-		`"id", "flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry"` +
+		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
 		`) = (` +
-		`EXCLUDED."id", EXCLUDED."flow", EXCLUDED."event_id", EXCLUDED."event", EXCLUDED."event_stamp", EXCLUDED."source", EXCLUDED."payload", EXCLUDED."created_at", EXCLUDED."from_service", EXCLUDED."last_service", EXCLUDED."last_error", EXCLUDED."last_retry", EXCLUDED."retry"` +
+		`EXCLUDED."id", EXCLUDED."event", EXCLUDED."event_id", EXCLUDED."parent_event_id", EXCLUDED."started_at", EXCLUDED."input", EXCLUDED."finished_at", EXCLUDED."output", EXCLUDED."output_event_id", EXCLUDED."json_headers", EXCLUDED."err"` +
 		`)`
 
 	// run query
-	XOLog(sqlstr, te.ID, te.Flow, te.EventID, te.Event, te.EventStamp, te.Source, te.Payload, te.CreatedAt, te.FromService, te.LastService, te.LastError, te.LastRetry, te.Retry)
-	_, err = db.Exec(sqlstr, te.ID, te.Flow, te.EventID, te.Event, te.EventStamp, te.Source, te.Payload, te.CreatedAt, te.FromService, te.LastService, te.LastError, te.LastRetry, te.Retry)
+	XOLog(sqlstr, tr.ID, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err)
+	_, err = db.Exec(sqlstr, tr.ID, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err)
 	if err != nil {
 		return err
 	}
 
 	// set existence
-	te._exists = true
+	tr._exists = true
 
 	return nil
 }
 
-// Delete deletes the TractorEvent from the database.
-func (te *TractorEvent) Delete(db XODB) error {
+// Delete deletes the TractorResult from the database.
+func (tr *TractorResult) Delete(db XODB) error {
 	var err error
 
 	// if doesn't exist, bail
-	if !te._exists {
+	if !tr._exists {
 		return nil
 	}
 
 	// if deleted, bail
-	if te._deleted {
+	if tr._deleted {
 		return nil
 	}
 
 	// sql query
-	const sqlstr = `DELETE FROM "public"."tractor_events" WHERE "id" = $1`
+	const sqlstr = `DELETE FROM "public"."tractor_result" WHERE "id" = $1`
 
 	// run query
-	XOLog(sqlstr, te.ID)
-	_, err = db.Exec(sqlstr, te.ID)
+	XOLog(sqlstr, tr.ID)
+	_, err = db.Exec(sqlstr, tr.ID)
 	if err != nil {
 		return err
 	}
 
 	// set deleted
-	te._deleted = true
+	tr._deleted = true
 
 	return nil
 }
 
-// TractorEventsByCreatedAt retrieves a row from '"public"."tractor_events"' as a TractorEvent.
+// TractorResultsByEventID retrieves a row from '"public"."tractor_result"' as a TractorResult.
 //
-// Generated from index 'tractor_events_created_at'.
-func TractorEventsByCreatedAt(db XODB, createdAt time.Time) ([]*TractorEvent, error) {
+// Generated from index 'tractor_result_event_id'.
+func TractorResultsByEventID(db XODB, eventID string) ([]*TractorResult, error) {
 	var err error
 
 	// sql query
 	const sqlstr = `SELECT ` +
-		`"id", "flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry" ` +
-		`FROM "public"."tractor_events" ` +
-		`WHERE "created_at" = $1`
-
-	// run query
-	XOLog(sqlstr, createdAt)
-	q, err := db.Query(sqlstr, createdAt)
-	if err != nil {
-		return nil, err
-	}
-	defer q.Close()
-
-	// load results
-	res := []*TractorEvent{}
-	for q.Next() {
-		te := TractorEvent{
-			_exists: true,
-		}
-
-		// scan
-		err = q.Scan(&te.ID, &te.Flow, &te.EventID, &te.Event, &te.EventStamp, &te.Source, &te.Payload, &te.CreatedAt, &te.FromService, &te.LastService, &te.LastError, &te.LastRetry, &te.Retry)
-		if err != nil {
-			return nil, err
-		}
-
-		res = append(res, &te)
-	}
-
-	return res, nil
-}
-
-// TractorEventsByEventID retrieves a row from '"public"."tractor_events"' as a TractorEvent.
-//
-// Generated from index 'tractor_events_event_id'.
-func TractorEventsByEventID(db XODB, eventID sql.NullString) ([]*TractorEvent, error) {
-	var err error
-
-	// sql query
-	const sqlstr = `SELECT ` +
-		`"id", "flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry" ` +
-		`FROM "public"."tractor_events" ` +
+		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
+		`FROM "public"."tractor_result" ` +
 		`WHERE "event_id" = $1`
 
 	// run query
@@ -236,87 +193,87 @@ func TractorEventsByEventID(db XODB, eventID sql.NullString) ([]*TractorEvent, e
 	defer q.Close()
 
 	// load results
-	res := []*TractorEvent{}
+	res := []*TractorResult{}
 	for q.Next() {
-		te := TractorEvent{
+		tr := TractorResult{
 			_exists: true,
 		}
 
 		// scan
-		err = q.Scan(&te.ID, &te.Flow, &te.EventID, &te.Event, &te.EventStamp, &te.Source, &te.Payload, &te.CreatedAt, &te.FromService, &te.LastService, &te.LastError, &te.LastRetry, &te.Retry)
+		err = q.Scan(&tr.ID, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.OutputEventID, &tr.JSONHeaders, &tr.Err)
 		if err != nil {
 			return nil, err
 		}
 
-		res = append(res, &te)
+		res = append(res, &tr)
 	}
 
 	return res, nil
 }
 
-// TractorEventsByEventStamp retrieves a row from '"public"."tractor_events"' as a TractorEvent.
+// TractorResultByID retrieves a row from '"public"."tractor_result"' as a TractorResult.
 //
-// Generated from index 'tractor_events_event_stamp'.
-func TractorEventsByEventStamp(db XODB, eventStamp pq.NullTime) ([]*TractorEvent, error) {
+// Generated from index 'tractor_result_pkey'.
+func TractorResultByID(db XODB, id int64) (*TractorResult, error) {
 	var err error
 
 	// sql query
 	const sqlstr = `SELECT ` +
-		`"id", "flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry" ` +
-		`FROM "public"."tractor_events" ` +
-		`WHERE "event_stamp" = $1`
+		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
+		`FROM "public"."tractor_result" ` +
+		`WHERE "id" = $1`
 
 	// run query
-	XOLog(sqlstr, eventStamp)
-	q, err := db.Query(sqlstr, eventStamp)
+	XOLog(sqlstr, id)
+	tr := TractorResult{
+		_exists: true,
+	}
+
+	err = db.QueryRow(sqlstr, id).Scan(&tr.ID, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.OutputEventID, &tr.JSONHeaders, &tr.Err)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tr, nil
+}
+
+// TractorResultsByStartedAt retrieves a row from '"public"."tractor_result"' as a TractorResult.
+//
+// Generated from index 'tractor_result_started_at'.
+func TractorResultsByStartedAt(db XODB, startedAt time.Time) ([]*TractorResult, error) {
+	var err error
+
+	// sql query
+	const sqlstr = `SELECT ` +
+		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
+		`FROM "public"."tractor_result" ` +
+		`WHERE "started_at" = $1`
+
+	// run query
+	XOLog(sqlstr, startedAt)
+	q, err := db.Query(sqlstr, startedAt)
 	if err != nil {
 		return nil, err
 	}
 	defer q.Close()
 
 	// load results
-	res := []*TractorEvent{}
+	res := []*TractorResult{}
 	for q.Next() {
-		te := TractorEvent{
+		tr := TractorResult{
 			_exists: true,
 		}
 
 		// scan
-		err = q.Scan(&te.ID, &te.Flow, &te.EventID, &te.Event, &te.EventStamp, &te.Source, &te.Payload, &te.CreatedAt, &te.FromService, &te.LastService, &te.LastError, &te.LastRetry, &te.Retry)
+		err = q.Scan(&tr.ID, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.OutputEventID, &tr.JSONHeaders, &tr.Err)
 		if err != nil {
 			return nil, err
 		}
 
-		res = append(res, &te)
+		res = append(res, &tr)
 	}
 
 	return res, nil
-}
-
-// TractorEventByID retrieves a row from '"public"."tractor_events"' as a TractorEvent.
-//
-// Generated from index 'tractor_events_pkey'.
-func TractorEventByID(db XODB, id int64) (*TractorEvent, error) {
-	var err error
-
-	// sql query
-	const sqlstr = `SELECT ` +
-		`"id", "flow", "event_id", "event", "event_stamp", "source", "payload", "created_at", "from_service", "last_service", "last_error", "last_retry", "retry" ` +
-		`FROM "public"."tractor_events" ` +
-		`WHERE "id" = $1`
-
-	// run query
-	XOLog(sqlstr, id)
-	te := TractorEvent{
-		_exists: true,
-	}
-
-	err = db.QueryRow(sqlstr, id).Scan(&te.ID, &te.Flow, &te.EventID, &te.Event, &te.EventStamp, &te.Source, &te.Payload, &te.CreatedAt, &te.FromService, &te.LastService, &te.LastError, &te.LastRetry, &te.Retry)
-	if err != nil {
-		return nil, err
-	}
-
-	return &te, nil
 }
 
 // XODB is the common interface for database operations that can be used with

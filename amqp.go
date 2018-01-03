@@ -9,6 +9,7 @@ import (
 	"time"
 	"fmt"
 	"bytes"
+	"github.com/twinj/uuid"
 )
 
 const (
@@ -124,7 +125,7 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 			for k, v := range msg.Headers {
 				headers[k] = fmt.Sprint(v)
 			}
-			message, err := c.Run(msg.Body, msg.MessageId, msg.RoutingKey, headers, ctx)
+			message, err := c.Run(msg.Body, msg.MessageId, msg.CorrelationId, msg.RoutingKey, headers, ctx)
 
 			select {
 			case <-ctx.Done():
@@ -159,10 +160,11 @@ func (c *Config) Consume(ctx context.Context, ch *amqp.Channel) error {
 					}
 
 					pub := amqp.Publishing{
-						MessageId: msg.MessageId,
-						Body:      part,
-						Headers:   msg.Headers,
-						Timestamp: time.Now(),
+						MessageId:     uuid.NewV4().String(),
+						CorrelationId: msg.MessageId,
+						Body:          part,
+						Headers:       msg.Headers,
+						Timestamp:     time.Now(),
 					}
 
 					if replyRequired {

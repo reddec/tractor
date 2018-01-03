@@ -16,6 +16,10 @@ import (
 	"strings"
 	"bufio"
 	"log"
+	"github.com/reddec/tractor/dbo"
+	"database/sql"
+	"encoding/json"
+	"github.com/reddec/tractor/utils"
 )
 
 type Config struct {
@@ -42,6 +46,8 @@ type Config struct {
 		ExceededEvent string `yaml:"exceeded_event,omitempty"` // Event that will be emitted when no more retries left
 	} `yaml:"retry"`
 	FailEvent string `yaml:"fail_event,omitempty"` // Event that will be emitted when application exited with non-zero code
+
+	db *utils.DatabasePool // Save results to DB
 }
 
 var allowedSymbols = regexp.MustCompile(`[^a-zA-Z\-\._0-9 \$@]+`)
@@ -50,7 +56,8 @@ func NormalizeName(name string) string {
 	return allowedSymbols.ReplaceAllString(name, "")
 }
 
-func (c *Config) Run(message []byte, messageId, event string, headers map[string]string, ctx context.Context) ([]byte, error) {
+func (c *Config) Run(message []byte, messageId, parentMessageId, event string, headers map[string]string, ctx context.Context) ([]byte, error) {
+	startedAt := time.Now()
 	app := c.App
 
 	if c.Limits.ExecutionTime != 0 {
@@ -103,10 +110,70 @@ func (c *Config) Run(message []byte, messageId, event string, headers map[string
 	cmd.Stderr = logErrOut
 
 	err := runWithContext(cmd, ctx, 2*time.Second)
+
+	finishedAt := time.Now()
+
+	if dbErr := c.saveResult(startedAt, finishedAt, message, buffer.Bytes(), messageId, parentMessageId, event, headers, err, ctx); dbErr != nil {
+		return nil, dbErr
+	}
+
 	if err != nil {
 		return nil, errors.Wrap(err, buffer.String())
 	}
 	return buffer.Bytes(), err
+}
+
+func (c *Config) saveResult(start, stop time.Time, message, result []byte, messageId, parentMessageId, event string, headers map[string]string, resErr error, ctx context.Context) error {
+	if c.db == nil {
+		return nil
+	}
+	var dbErr sql.NullString
+	if resErr != nil {
+		dbErr.Valid = true
+		dbErr.String = resErr.Error()
+	}
+
+	headersData, _ := json.Marshal(headers)
+	res := dbo.TractorResult{
+		Event:         event,
+		EventID:       messageId,
+		ParentEventID: sql.NullString{Valid: parentMessageId != "", String: parentMessageId},
+		FinishedAt:    stop,
+		StartedAt:     start,
+		Input:         message,
+		Output:        result,
+		JSONHeaders:   string(headersData),
+		Err:           dbErr,
+	}
+
+	for {
+		tx, err := c.db.OpenTransaction(ctx)
+		if err != nil {
+			return err
+		}
+		err = res.Insert(tx)
+		if err != nil {
+			log.Println("failed save result to DB:", err)
+			goto WAIT
+		} else {
+			err = tx.Commit()
+		}
+		if err != nil {
+			log.Println("failed commit result in DB:", err)
+			goto WAIT
+		}
+		return nil
+	WAIT:
+		err = tx.Rollback()
+		if err != nil {
+			log.Println("failed rollback:", err)
+		}
+		select {
+		case <-time.After(c.db.ReconnectTimeout):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
 }
 
 func (c *Config) RunStream(ctx context.Context) (ch <-chan string) {
@@ -233,6 +300,20 @@ func DefaultConfig() Config {
 	cfg.Scale = 1
 	cfg.Limits.GracefulTime = 2 * time.Second
 	return cfg
+}
+
+func DefaultConfigWithDB(db *utils.DatabasePool) Config {
+	cfg := DefaultConfig()
+	cfg.db = db
+	return cfg
+}
+
+func LoadConfigWithDb(file string, validate bool, db *utils.DatabasePool) (*Config, error) {
+	cfg, err := LoadConfig(file, validate)
+	if err == nil {
+		cfg.db = db
+	}
+	return cfg, err
 }
 
 func LoadConfig(file string, validate bool) (*Config, error) {

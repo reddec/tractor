@@ -1,22 +1,18 @@
-CREATE TABLE IF NOT EXISTS tractor_events (
-  ID           BIGSERIAL                NOT NULL PRIMARY KEY,
-  FLOW         TEXT                     NOT NULL,
-  EVENT_ID     TEXT,
-  EVENT        TEXT                     NOT NULL,
-  EVENT_STAMP  TIMESTAMP WITH TIME ZONE,
-  SOURCE       TEXT,
-  PAYLOAD      BYTEA                    NOT NULL,
-  CREATED_AT   TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT current_timestamp,
-  FROM_SERVICE TEXT, -- original provider of event
-  LAST_SERVICE TEXT, -- last service that processed event (maybe different after retry)
-  LAST_ERROR   TEXT, -- last error
-  LAST_RETRY   INT, -- previous known retry number
-  RETRY        INT   -- current retry number
+CREATE TABLE IF NOT EXISTS tractor_result (
+  ID              BIGSERIAL                NOT NULL PRIMARY KEY,
+  EVENT           TEXT                     NOT NULL,
+  EVENT_ID        TEXT                     NOT NULL,
+  PARENT_EVENT_ID TEXT,
+  STARTED_AT      TIMESTAMP WITH TIME ZONE NOT NULL,
+  INPUT           BYTEA                    NOT NULL,
+  FINISHED_AT     TIMESTAMP WITH TIME ZONE NOT NULL,
+  OUTPUT          BYTEA                    NOT NULL,
+  OUTPUT_EVENT_ID TEXT                     NOT NULL,
+  JSON_HEADERS    TEXT                     NOT NULL,
+  ERR             TEXT
 );
 
-CREATE INDEX IF NOT EXISTS tractor_events_event_id
-  ON tractor_events (EVENT_ID);
-CREATE INDEX IF NOT EXISTS tractor_events_event_stamp
-  ON tractor_events (EVENT_STAMP DESC);
-CREATE INDEX IF NOT EXISTS tractor_events_created_at
-  ON tractor_events (CREATED_AT DESC);
+CREATE INDEX IF NOT EXISTS tractor_result_event_id
+  ON tractor_result (EVENT_ID);
+CREATE INDEX IF NOT EXISTS tractor_result_started_at
+  ON tractor_result (STARTED_AT DESC);

@@ -26,6 +26,7 @@ import (
 var (
 	brokerUrl = kingpin.Flag("broker", "Broker AMQP URL").Short('b').Default("amqp://guest:guest@localhost:5672").Envar("TRACTOR_BROKER").Strings()
 	from      = kingpin.Flag("from", "Path to directory with configurations files").Short('f').Default(".").Envar("TRACTOR_FROM").String()
+	dbUrls    = kingpin.Flag("db", "Postgresql database connection strings").Short('d').Strings()
 )
 
 var (
@@ -60,7 +61,7 @@ var (
 )
 
 var (
-	startCmd        = kingpin.Command("start", "Start flow")
+	startCmd = kingpin.Command("start", "Start flow")
 )
 var (
 	rmCmd = kingpin.Command("rm", "Remove flow infrastructure")
@@ -160,7 +161,12 @@ func call() {
 }
 
 func run() {
-	var cfg = tractor.DefaultConfig()
+	var db *utils.DatabasePool
+
+	if len(*dbUrls) > 0 {
+		db = utils.DefaultDBPool(*dbUrls...)
+	}
+	var cfg = tractor.DefaultConfigWithDB(db)
 	cfg.App = (*runArgs)[0]
 	cfg.Args = (*runArgs)[1:]
 	cfg.Listen = (*runListen)
@@ -393,6 +399,12 @@ func rm() {
 }
 
 func getConfigs() []*tractor.Config {
+	var db *utils.DatabasePool
+
+	if len(*dbUrls) > 0 {
+		db = utils.DefaultDBPool(*dbUrls...)
+	}
+
 	var configs []*tractor.Config
 
 	items, err := ioutil.ReadDir(*from)
@@ -403,7 +415,7 @@ func getConfigs() []*tractor.Config {
 	for _, item := range items {
 		lName := strings.ToLower(item.Name())
 		if strings.HasSuffix(lName, ".yaml") || strings.HasSuffix(lName, ".yml") {
-			cfg, err := tractor.LoadConfig(filepath.Join(*from, item.Name()), true)
+			cfg, err := tractor.LoadConfigWithDb(filepath.Join(*from, item.Name()), true, db)
 			if err != nil {
 				log.Fatal("failed load config", lName, "-", err)
 			}

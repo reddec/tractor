@@ -1,4 +1,4 @@
-package dbo
+package utils
 
 import (
 	"github.com/jmoiron/sqlx"
@@ -6,6 +6,7 @@ import (
 	"context"
 	_ "github.com/lib/pq"
 	"log"
+	"math/rand"
 )
 
 const poolDriver = "postgres"
@@ -15,6 +16,14 @@ type DatabasePool struct {
 	ReconnectTimeout time.Duration `long:"db-reconnect-timeout" description:"Delay between connections attempts" default:"5s"`
 	currentPool      *sqlx.DB
 	offset           int
+}
+
+func DefaultDBPool(url ...string) *DatabasePool {
+	return &DatabasePool{
+		URLs:             url,
+		ReconnectTimeout: 5 * time.Second,
+		offset:           rand.Intn(len(url)),
+	}
 }
 
 func (dp *DatabasePool) Close() error {

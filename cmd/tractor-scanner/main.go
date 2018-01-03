@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/reddec/tractor/utils"
-	"github.com/reddec/tractor/dbo"
+	"github.com/reddec/tractor/cmd/tractor-scanner/dbo"
 	"github.com/jessevdk/go-flags"
 	"os"
 	"context"
@@ -18,9 +18,9 @@ import (
 )
 
 var config struct {
-	BrokerPool   utils.BrokerPool `group:"Broker configuration"`
-	DatabasePool dbo.DatabasePool `group:"Database configuration"`
-	Monitor      tractor.Monitor  `group:"Monitoring configuration"`
+	BrokerPool   utils.BrokerPool   `group:"Broker configuration"`
+	DatabasePool utils.DatabasePool `group:"Database configuration"`
+	Monitor      tractor.Monitor    `group:"Monitoring configuration"`
 }
 
 func main() {
