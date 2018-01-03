@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-// TractorResult represents a row from '"public"."tractor_result"'.
+// TractorResult represents a row from '"tractor_result"'.
 type TractorResult struct {
 	ID            int64          `json:"id"`              // id
 	Event         string         `json:"event"`           // event
@@ -52,7 +52,7 @@ func (tr *TractorResult) Insert(db XODB) error {
 	}
 
 	// sql insert query, primary key provided by sequence
-	const sqlstr = `INSERT INTO "public"."tractor_result" (` +
+	const sqlstr = `INSERT INTO "tractor_result" (` +
 		`"event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
 		`) VALUES (` +
 		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10` +
@@ -86,7 +86,7 @@ func (tr *TractorResult) Update(db XODB) error {
 	}
 
 	// sql query
-	const sqlstr = `UPDATE "public"."tractor_result" SET (` +
+	const sqlstr = `UPDATE "tractor_result" SET (` +
 		`"event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
 		`) = ( ` +
 		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10` +
@@ -119,7 +119,7 @@ func (tr *TractorResult) Upsert(db XODB) error {
 	}
 
 	// sql query
-	const sqlstr = `INSERT INTO "public"."tractor_result" (` +
+	const sqlstr = `INSERT INTO "tractor_result" (` +
 		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
 		`) VALUES (` +
 		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11` +
@@ -157,7 +157,7 @@ func (tr *TractorResult) Delete(db XODB) error {
 	}
 
 	// sql query
-	const sqlstr = `DELETE FROM "public"."tractor_result" WHERE "id" = $1`
+	const sqlstr = `DELETE FROM "tractor_result" WHERE "id" = $1`
 
 	// run query
 	XOLog(sqlstr, tr.ID)
@@ -172,7 +172,7 @@ func (tr *TractorResult) Delete(db XODB) error {
 	return nil
 }
 
-// TractorResultsByEventID retrieves a row from '"public"."tractor_result"' as a TractorResult.
+// TractorResultsByEventID retrieves a row from '"tractor_result"' as a TractorResult.
 //
 // Generated from index 'tractor_result_event_id'.
 func TractorResultsByEventID(db XODB, eventID string) ([]*TractorResult, error) {
@@ -181,7 +181,7 @@ func TractorResultsByEventID(db XODB, eventID string) ([]*TractorResult, error) 
 	// sql query
 	const sqlstr = `SELECT ` +
 		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
-		`FROM "public"."tractor_result" ` +
+		`FROM "tractor_result" ` +
 		`WHERE "event_id" = $1`
 
 	// run query
@@ -211,7 +211,7 @@ func TractorResultsByEventID(db XODB, eventID string) ([]*TractorResult, error) 
 	return res, nil
 }
 
-// TractorResultByID retrieves a row from '"public"."tractor_result"' as a TractorResult.
+// TractorResultByID retrieves a row from '"tractor_result"' as a TractorResult.
 //
 // Generated from index 'tractor_result_pkey'.
 func TractorResultByID(db XODB, id int64) (*TractorResult, error) {
@@ -220,7 +220,7 @@ func TractorResultByID(db XODB, id int64) (*TractorResult, error) {
 	// sql query
 	const sqlstr = `SELECT ` +
 		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
-		`FROM "public"."tractor_result" ` +
+		`FROM "tractor_result" ` +
 		`WHERE "id" = $1`
 
 	// run query
@@ -237,7 +237,7 @@ func TractorResultByID(db XODB, id int64) (*TractorResult, error) {
 	return &tr, nil
 }
 
-// TractorResultsByStartedAt retrieves a row from '"public"."tractor_result"' as a TractorResult.
+// TractorResultsByStartedAt retrieves a row from '"tractor_result"' as a TractorResult.
 //
 // Generated from index 'tractor_result_started_at'.
 func TractorResultsByStartedAt(db XODB, startedAt time.Time) ([]*TractorResult, error) {
@@ -246,7 +246,7 @@ func TractorResultsByStartedAt(db XODB, startedAt time.Time) ([]*TractorResult, 
 	// sql query
 	const sqlstr = `SELECT ` +
 		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
-		`FROM "public"."tractor_result" ` +
+		`FROM "tractor_result" ` +
 		`WHERE "started_at" = $1`
 
 	// run query
