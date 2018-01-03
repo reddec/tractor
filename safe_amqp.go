@@ -6,7 +6,6 @@ import (
 	"context"
 	"github.com/pkg/errors"
 	"log"
-	"net"
 )
 
 type SafeExchange struct {
@@ -53,26 +52,17 @@ func (m *SafeExchange) runWithConnection(ctx context.Context, conn *amqp.Connect
 
 }
 
-func (m *SafeExchange) Run(ctx context.Context, url string) error {
+func (m *SafeExchange) Run(ctx context.Context, opener ConnectionOpener) error {
 	for {
-		conn, err := amqp.DialConfig(url, amqp.Config{
-			Heartbeat: 10 * time.Second,
-			Locale:    "en_US",
-			Dial: func(network, addr string) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, network, addr)
-			},
-		})
-
+		conn, err := opener.OpenConnection(ctx)
 		if err != nil {
-			log.Println("failed connect:", err)
-		} else {
-			err = m.runWithConnection(ctx, conn)
-			if err != nil {
-				log.Println("failed run:", err)
-			}
-			conn.Close()
+			return errors.Wrap(err, "sf-open-connection")
 		}
+		err = m.runWithConnection(ctx, conn)
+		if err != nil {
+			log.Println("failed run:", err)
+		}
+		conn.Close()
 		select {
 		case <-time.After(m.Retry):
 		case <-ctx.Done():
@@ -86,7 +76,7 @@ type safeMessage struct {
 	msg amqp.Publishing
 }
 
-func SafePublisher(retry time.Duration, exchangeName string, exchangeType string, url string, ctx context.Context) (func(topic string, msg amqp.Publishing), <-chan error) {
+func SafePublisher(retry time.Duration, exchangeName string, exchangeType string, opener ConnectionOpener, ctx context.Context) (func(topic string, msg amqp.Publishing), <-chan error) {
 	var last *safeMessage
 	var data = make(chan safeMessage)
 	var sf = &SafeExchange{
@@ -119,7 +109,7 @@ func SafePublisher(retry time.Duration, exchangeName string, exchangeType string
 	done := make(chan error, 1)
 	go func() {
 		defer close(done)
-		done <- sf.Run(ctx, url)
+		done <- sf.Run(ctx, opener)
 	}()
 	return func(topic string, msg amqp.Publishing) {
 		select {

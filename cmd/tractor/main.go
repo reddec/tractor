@@ -20,10 +20,11 @@ import (
 	"time"
 	"gopkg.in/yaml.v2"
 	"bufio"
+	"github.com/reddec/tractor/utils"
 )
 
 var (
-	brokerUrl = kingpin.Flag("broker", "Broker AMQP URL").Short('b').Default("amqp://guest:guest@localhost:5672").Envar("TRACTOR_BROKER").String()
+	brokerUrl = kingpin.Flag("broker", "Broker AMQP URL").Short('b').Default("amqp://guest:guest@localhost:5672").Envar("TRACTOR_BROKER").Strings()
 	from      = kingpin.Flag("from", "Path to directory with configurations files").Short('f').Default(".").Envar("TRACTOR_FROM").String()
 )
 
@@ -60,7 +61,6 @@ var (
 
 var (
 	startCmd        = kingpin.Command("start", "Start flow")
-	startHttpServer = kingpin.Flag("http", "HTTP publish binding").Default("127.0.0.1:5040").String()
 )
 var (
 	rmCmd = kingpin.Command("rm", "Remove flow infrastructure")
@@ -125,7 +125,7 @@ func call() {
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
-	session, err := tractor.BindSession(*brokerUrl, *callFlow, *callEvent, *callTimeout, ctx)
+	session, err := tractor.BindSession(utils.DefaultPool(*brokerUrl...), *callFlow, *callEvent, *callTimeout, ctx)
 	if err != nil {
 		log.Fatal("failed create session: ", err)
 	}
@@ -173,6 +173,8 @@ func run() {
 	cfg.Limits.ExecutionTime = *runLimitExecTime
 	cfg.Limits.GracefulTime = *runGracefulTime
 
+	var bp = utils.DefaultPool(*brokerUrl...)
+
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
 
@@ -181,11 +183,11 @@ func run() {
 		defer close(done)
 		if cfg.Stream {
 			log.Println("stream", cfg.Name, "started")
-			err := cfg.RunStreamPublisher(ctx, *brokerUrl)
+			err := cfg.RunStreamPublisher(ctx, bp)
 			log.Println("stream", cfg.Name, "finished. reason:", err)
 		} else {
 			log.Println("service", cfg.Name, "started")
-			err := cfg.RunWithReconnect(ctx, *brokerUrl)
+			err := cfg.RunWithReconnect(ctx, bp)
 			log.Println("service", cfg.Name, "finished. reason:", err)
 		}
 	}()
@@ -299,7 +301,7 @@ func monitor() {
 	done := make(chan struct{})
 	go func() {
 		defer close(done)
-		mon.RunMonitorWithReconnect(ctx, *brokerUrl, func(tm time.Time, event string, id string, body []byte, headers map[string]string) {
+		mon.RunMonitorWithReconnect(ctx, utils.DefaultPool(*brokerUrl...), func(tm time.Time, event string, id string, body []byte, headers map[string]string) {
 			lock.Lock()
 			defer lock.Unlock()
 
@@ -350,7 +352,7 @@ func monitor() {
 func rm() {
 	var configs = getConfigs()
 
-	conn, err := amqp.Dial(*brokerUrl)
+	conn, err := utils.DefaultPool(*brokerUrl...).OpenConnection(context.Background())
 	if err != nil {
 		log.Fatal("failed connect:", err)
 
@@ -418,7 +420,7 @@ func pushEvent() {
 		log.Fatal("failed read stdin:", err)
 	}
 
-	conn, err := amqp.Dial(*brokerUrl)
+	conn, err := utils.DefaultPool(*brokerUrl...).OpenConnection(context.Background())
 	if err != nil {
 		log.Fatal("failed connect:", err)
 	}
@@ -535,6 +537,7 @@ func start() {
 	wg := sync.WaitGroup{}
 	ctx, closer := context.WithCancel(context.Background())
 	defer closer()
+	var bp = utils.DefaultPool(*brokerUrl...)
 
 	for _, cfg := range configs {
 		for i := 0; i < cfg.Scale; i++ {
@@ -543,23 +546,15 @@ func start() {
 				defer wg.Done()
 				if cfg.Stream {
 					log.Println("stream #", i, cfg.Name, "started")
-					err := cfg.RunStreamPublisher(ctx, *brokerUrl)
+					err := cfg.RunStreamPublisher(ctx, bp)
 					log.Println("stream #", i, cfg.Name, "finished. reason:", err)
 				} else {
 					log.Println("service", i, cfg.Name, "started")
-					err := cfg.RunWithReconnect(ctx, *brokerUrl)
+					err := cfg.RunWithReconnect(ctx, bp)
 					log.Println("service", i, cfg.Name, "finished. reason:", err)
 				}
 			}(i, cfg)
 		}
-	}
-
-	if *startHttpServer != "" {
-		wg.Add(1)
-		go func() {
-			defer wg.Done()
-			tractor.RunHTTPApi(configs[0].Flow, *startHttpServer, configs[0].Reconnect, ctx, *brokerUrl)
-		}()
 	}
 
 	c := make(chan os.Signal, 2)

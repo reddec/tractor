@@ -77,16 +77,8 @@ func (s *Session) Close() {
 	s.conn.Close()
 }
 
-func BindSession(url string, exchange, event string, connectTimeout time.Duration, ctx context.Context) (*Session, error) {
-	conn, err := amqp.DialConfig(url, amqp.Config{
-		Heartbeat: 10 * time.Second,
-		Locale:    "en_US",
-		Dial: func(network, addr string) (net.Conn, error) {
-			var d net.Dialer
-			d.Timeout = connectTimeout
-			return d.DialContext(ctx, network, addr)
-		},
-	})
+func BindSession(opener ConnectionOpener, exchange, event string, connectTimeout time.Duration, ctx context.Context) (*Session, error) {
+	conn, err := opener.OpenConnection(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "connect to broker")
 	}

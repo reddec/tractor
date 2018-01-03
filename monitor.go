@@ -6,7 +6,6 @@ import (
 	"context"
 	"github.com/pkg/errors"
 	"log"
-	"net"
 	"fmt"
 )
 
@@ -99,26 +98,18 @@ func (m *Monitor) runMonitorWithConnection(ctx context.Context, conn *amqp.Conne
 
 }
 
-func (m *Monitor) RunMonitorWithReconnect(ctx context.Context, url string, printer MonitorPrinter) error {
+func (m *Monitor) RunMonitorWithReconnect(ctx context.Context, opener ConnectionOpener, printer MonitorPrinter) error {
 	for {
-		conn, err := amqp.DialConfig(url, amqp.Config{
-			Heartbeat: 10 * time.Second,
-			Locale:    "en_US",
-			Dial: func(network, addr string) (net.Conn, error) {
-				var d net.Dialer
-				return d.DialContext(ctx, network, addr)
-			},
-		})
+		conn, err := opener.OpenConnection(ctx)
 
 		if err != nil {
-			log.Println("failed connect monitor:", err)
-		} else {
-			err = m.runMonitorWithConnection(ctx, conn, printer)
-			if err != nil {
-				log.Println("failed run monitor:", err)
-			}
-			conn.Close()
+			return err
 		}
+		err = m.runMonitorWithConnection(ctx, conn, printer)
+		if err != nil {
+			log.Println("failed run monitor:", err)
+		}
+		conn.Close()
 		select {
 		case <-time.After(m.Retry):
 		case <-ctx.Done():

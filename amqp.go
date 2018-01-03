@@ -7,7 +7,6 @@ import (
 	"log"
 	"strconv"
 	"time"
-	"net"
 	"fmt"
 	"bytes"
 )
@@ -276,29 +275,19 @@ func (c *Config) runWithConnection(ctx context.Context, conn *amqp.Connection) e
 			return ctx.Err()
 		}
 	}
-
 }
 
-func (c *Config) RunWithReconnect(ctx context.Context, url string) error {
+func (c *Config) RunWithReconnect(ctx context.Context, opener ConnectionOpener) error {
 	for {
-		conn, err := amqp.DialConfig(url, amqp.Config{
-			Heartbeat: 10 * time.Second,
-			Locale:    "en_US",
-			Dial: func(network, addr string) (net.Conn, error) {
-				var d net.Dialer
-				d.Timeout = c.Connect
-				return d.DialContext(ctx, network, addr)
-			},
-		})
+		conn, err := opener.OpenConnection(ctx)
 		if err != nil {
-			log.Println("failed connect:", err)
-		} else {
-			err = c.runWithConnection(ctx, conn)
-			if err != nil {
-				log.Println("failed run:", err)
-			}
-			conn.Close()
+			return err
 		}
+		err = c.runWithConnection(ctx, conn)
+		if err != nil {
+			log.Println("failed run:", err)
+		}
+		conn.Close()
 		select {
 		case <-time.After(c.Reconnect):
 		case <-ctx.Done():

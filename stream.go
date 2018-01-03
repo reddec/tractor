@@ -7,8 +7,12 @@ import (
 	"time"
 )
 
-func (c *Config) RunStreamPublisher(ctx context.Context, url string) error {
-	publisher, done := SafePublisher(c.Reconnect, c.exchangeName(), "topic", url, ctx)
+type ConnectionOpener interface {
+	OpenConnection(ctx context.Context) (*amqp.Connection, error)
+}
+
+func (c *Config) RunStreamPublisher(ctx context.Context, opener ConnectionOpener) error {
+	publisher, done := SafePublisher(c.Reconnect, c.exchangeName(), "topic", opener, ctx)
 LOOP:
 	for {
 		output := c.RunStream(ctx)
