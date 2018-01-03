@@ -23,7 +23,7 @@ import (
 	"github.com/reddec/tractor/utils"
 )
 
-var VERSION = "dev"
+var VERSION string
 
 var (
 	brokerUrl = kingpin.Flag("broker", "Broker AMQP URL").Short('b').Default("amqp://guest:guest@localhost:5672").Envar("TRACTOR_BROKER").Strings()
@@ -86,7 +86,8 @@ var (
 var (
 	pushEventCmd  = eventCmd.Command("push", "Push event (from stdin) to flow")
 	pushEventName = pushEventCmd.Arg("event", "Event name").Required().String()
-	pushEnv       = eventCmd.Flag("env", "Additional meta-header for event").Short('e').StringMap()
+	pushEnv       = pushEventCmd.Flag("env", "Additional meta-header for event").Short('e').StringMap()
+	pushEventFlow = pushEventCmd.Flag("flow", "Custom flow name").Short('F').String()
 )
 
 func main() {
@@ -445,7 +446,10 @@ func pushEvent() {
 		log.Fatal("failed open channel:", err)
 	}
 	msgId := uuid.NewV4().String()
-	flow := tractor.GetFlowFromDir(*from)
+	var flow = tractor.NormalizeName(*pushEventFlow)
+	if flow == "" {
+		flow = tractor.GetFlowFromDir(*from)
+	}
 
 	var header = make(amqp.Table)
 

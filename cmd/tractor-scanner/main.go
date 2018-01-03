@@ -18,7 +18,7 @@ import (
 	"fmt"
 )
 
-var VERSION = "dev"
+var VERSION string
 
 var config struct {
 	BrokerPool   utils.BrokerPool   `group:"Broker configuration"`
