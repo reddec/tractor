@@ -50,6 +50,8 @@ type Config struct {
 	db *utils.DatabasePool // Save results to DB
 }
 
+func (c *Config) DB() *utils.DatabasePool { return c.db }
+
 var allowedSymbols = regexp.MustCompile(`[^a-zA-Z\-\._0-9 \$@]+`)
 
 func NormalizeName(name string) string {

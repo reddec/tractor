@@ -21,6 +21,7 @@ import (
 	"gopkg.in/yaml.v2"
 	"bufio"
 	"github.com/reddec/tractor/utils"
+	"github.com/reddec/tractor/dbo"
 )
 
 var VERSION string
@@ -89,6 +90,20 @@ var (
 	pushEnv       = pushEventCmd.Flag("env", "Additional meta-header for event").Short('e').StringMap()
 	pushEventFlow = pushEventCmd.Flag("flow", "Custom flow name").Short('F').String()
 )
+
+func initDb(dp *utils.DatabasePool, ctx context.Context) error {
+	log.Println("preparing db")
+	tx, err := dp.OpenTransaction(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(string(dbo.MustAsset("schema.sql")))
+	log.Println("commiting changes")
+	if err != nil {
+		return tx.Rollback()
+	}
+	return tx.Commit()
+}
 
 func main() {
 	kingpin.CommandLine.Version(VERSION).Name = "tractor"
@@ -189,6 +204,20 @@ func run() {
 	defer closer()
 
 	done := make(chan struct{})
+
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-c
+		closer()
+	}()
+	if db != nil {
+		err := initDb(db, ctx)
+		if err != nil {
+			log.Println("failed init DB:", err)
+			return
+		}
+	}
 	go func() {
 		defer close(done)
 		if cfg.Stream {
@@ -200,12 +229,6 @@ func run() {
 			err := cfg.RunWithReconnect(ctx, bp)
 			log.Println("service", cfg.Name, "finished. reason:", err)
 		}
-	}()
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-c
-		closer()
 	}()
 
 	<-done
@@ -403,11 +426,6 @@ func rm() {
 }
 
 func getConfigs() []*tractor.Config {
-	var db *utils.DatabasePool
-
-	if len(*dbUrls) > 0 {
-		db = utils.DefaultDBPool(*dbUrls...)
-	}
 
 	var configs []*tractor.Config
 
@@ -417,6 +435,12 @@ func getConfigs() []*tractor.Config {
 	}
 
 	for _, item := range items {
+		var db *utils.DatabasePool //awlays initialize different DB pool
+
+		if len(*dbUrls) > 0 {
+			db = utils.DefaultDBPool(*dbUrls...)
+		}
+
 		lName := strings.ToLower(item.Name())
 		if strings.HasSuffix(lName, ".yaml") || strings.HasSuffix(lName, ".yml") {
 			cfg, err := tractor.LoadConfigWithDb(filepath.Join(*from, item.Name()), true, db)
@@ -558,6 +582,21 @@ func start() {
 	defer closer()
 	var bp = utils.DefaultPool(*brokerUrl...)
 
+	c := make(chan os.Signal, 2)
+	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-c
+		closer()
+	}()
+
+	if len(configs) > 0 && configs[0].DB() != nil {
+		err := initDb(configs[0].DB(), ctx)
+		if err != nil {
+			log.Println("failed init db:", err)
+			return
+		}
+	}
+
 	for _, cfg := range configs {
 		for i := 0; i < cfg.Scale; i++ {
 			wg.Add(1)
@@ -575,13 +614,6 @@ func start() {
 			}(i, cfg)
 		}
 	}
-
-	c := make(chan os.Signal, 2)
-	signal.Notify(c, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-c
-		closer()
-	}()
 
 	wg.Wait()
 	log.Println("finished")
