@@ -17,6 +17,8 @@ import (
 // TractorResult represents a row from '"tractor_result"'.
 type TractorResult struct {
 	ID            int64          `json:"id"`              // id
+	JSONHeaders   string         `json:"json_headers"`    // json_headers
+	Flow          string         `json:"flow"`            // flow
 	Event         string         `json:"event"`           // event
 	EventID       string         `json:"event_id"`        // event_id
 	ParentEventID sql.NullString `json:"parent_event_id"` // parent_event_id
@@ -24,8 +26,7 @@ type TractorResult struct {
 	Input         []byte         `json:"input"`           // input
 	FinishedAt    time.Time      `json:"finished_at"`     // finished_at
 	Output        []byte         `json:"output"`          // output
-	OutputEventID string         `json:"output_event_id"` // output_event_id
-	JSONHeaders   string         `json:"json_headers"`    // json_headers
+	Node          string         `json:"node"`            // node
 	Err           sql.NullString `json:"err"`             // err
 
 	// xo fields
@@ -53,14 +54,14 @@ func (tr *TractorResult) Insert(db XODB) error {
 
 	// sql insert query, primary key provided by sequence
 	const sqlstr = `INSERT INTO "tractor_result" (` +
-		`"event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
+		`"json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err"` +
 		`) VALUES (` +
-		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10` +
+		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11` +
 		`) RETURNING "id"`
 
 	// run query
-	XOLog(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err)
-	err = db.QueryRow(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err).Scan(&tr.ID)
+	XOLog(sqlstr, tr.JSONHeaders, tr.Flow, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.Node, tr.Err)
+	err = db.QueryRow(sqlstr, tr.JSONHeaders, tr.Flow, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.Node, tr.Err).Scan(&tr.ID)
 	if err != nil {
 		return err
 	}
@@ -87,14 +88,14 @@ func (tr *TractorResult) Update(db XODB) error {
 
 	// sql query
 	const sqlstr = `UPDATE "tractor_result" SET (` +
-		`"event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
+		`"json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err"` +
 		`) = ( ` +
-		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10` +
-		`) WHERE "id" = $11`
+		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11` +
+		`) WHERE "id" = $12`
 
 	// run query
-	XOLog(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err, tr.ID)
-	_, err = db.Exec(sqlstr, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err, tr.ID)
+	XOLog(sqlstr, tr.JSONHeaders, tr.Flow, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.Node, tr.Err, tr.ID)
+	_, err = db.Exec(sqlstr, tr.JSONHeaders, tr.Flow, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.Node, tr.Err, tr.ID)
 	return err
 }
 
@@ -120,18 +121,18 @@ func (tr *TractorResult) Upsert(db XODB) error {
 
 	// sql query
 	const sqlstr = `INSERT INTO "tractor_result" (` +
-		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
+		`"id", "json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err"` +
 		`) VALUES (` +
-		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11` +
+		`$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12` +
 		`) ON CONFLICT ("id") DO UPDATE SET (` +
-		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err"` +
+		`"id", "json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err"` +
 		`) = (` +
-		`EXCLUDED."id", EXCLUDED."event", EXCLUDED."event_id", EXCLUDED."parent_event_id", EXCLUDED."started_at", EXCLUDED."input", EXCLUDED."finished_at", EXCLUDED."output", EXCLUDED."output_event_id", EXCLUDED."json_headers", EXCLUDED."err"` +
+		`EXCLUDED."id", EXCLUDED."json_headers", EXCLUDED."flow", EXCLUDED."event", EXCLUDED."event_id", EXCLUDED."parent_event_id", EXCLUDED."started_at", EXCLUDED."input", EXCLUDED."finished_at", EXCLUDED."output", EXCLUDED."node", EXCLUDED."err"` +
 		`)`
 
 	// run query
-	XOLog(sqlstr, tr.ID, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err)
-	_, err = db.Exec(sqlstr, tr.ID, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.OutputEventID, tr.JSONHeaders, tr.Err)
+	XOLog(sqlstr, tr.ID, tr.JSONHeaders, tr.Flow, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.Node, tr.Err)
+	_, err = db.Exec(sqlstr, tr.ID, tr.JSONHeaders, tr.Flow, tr.Event, tr.EventID, tr.ParentEventID, tr.StartedAt, tr.Input, tr.FinishedAt, tr.Output, tr.Node, tr.Err)
 	if err != nil {
 		return err
 	}
@@ -180,7 +181,7 @@ func TractorResultsByEventID(db XODB, eventID string) ([]*TractorResult, error) 
 
 	// sql query
 	const sqlstr = `SELECT ` +
-		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
+		`"id", "json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err" ` +
 		`FROM "tractor_result" ` +
 		`WHERE "event_id" = $1`
 
@@ -200,7 +201,85 @@ func TractorResultsByEventID(db XODB, eventID string) ([]*TractorResult, error) 
 		}
 
 		// scan
-		err = q.Scan(&tr.ID, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.OutputEventID, &tr.JSONHeaders, &tr.Err)
+		err = q.Scan(&tr.ID, &tr.JSONHeaders, &tr.Flow, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.Node, &tr.Err)
+		if err != nil {
+			return nil, err
+		}
+
+		res = append(res, &tr)
+	}
+
+	return res, nil
+}
+
+// TractorResultsByFlow retrieves a row from '"tractor_result"' as a TractorResult.
+//
+// Generated from index 'tractor_result_flow'.
+func TractorResultsByFlow(db XODB, flow string) ([]*TractorResult, error) {
+	var err error
+
+	// sql query
+	const sqlstr = `SELECT ` +
+		`"id", "json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err" ` +
+		`FROM "tractor_result" ` +
+		`WHERE "flow" = $1`
+
+	// run query
+	XOLog(sqlstr, flow)
+	q, err := db.Query(sqlstr, flow)
+	if err != nil {
+		return nil, err
+	}
+	defer q.Close()
+
+	// load results
+	res := []*TractorResult{}
+	for q.Next() {
+		tr := TractorResult{
+			_exists: true,
+		}
+
+		// scan
+		err = q.Scan(&tr.ID, &tr.JSONHeaders, &tr.Flow, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.Node, &tr.Err)
+		if err != nil {
+			return nil, err
+		}
+
+		res = append(res, &tr)
+	}
+
+	return res, nil
+}
+
+// TractorResultsByNode retrieves a row from '"tractor_result"' as a TractorResult.
+//
+// Generated from index 'tractor_result_node'.
+func TractorResultsByNode(db XODB, node string) ([]*TractorResult, error) {
+	var err error
+
+	// sql query
+	const sqlstr = `SELECT ` +
+		`"id", "json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err" ` +
+		`FROM "tractor_result" ` +
+		`WHERE "node" = $1`
+
+	// run query
+	XOLog(sqlstr, node)
+	q, err := db.Query(sqlstr, node)
+	if err != nil {
+		return nil, err
+	}
+	defer q.Close()
+
+	// load results
+	res := []*TractorResult{}
+	for q.Next() {
+		tr := TractorResult{
+			_exists: true,
+		}
+
+		// scan
+		err = q.Scan(&tr.ID, &tr.JSONHeaders, &tr.Flow, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.Node, &tr.Err)
 		if err != nil {
 			return nil, err
 		}
@@ -219,7 +298,7 @@ func TractorResultByID(db XODB, id int64) (*TractorResult, error) {
 
 	// sql query
 	const sqlstr = `SELECT ` +
-		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
+		`"id", "json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err" ` +
 		`FROM "tractor_result" ` +
 		`WHERE "id" = $1`
 
@@ -229,7 +308,7 @@ func TractorResultByID(db XODB, id int64) (*TractorResult, error) {
 		_exists: true,
 	}
 
-	err = db.QueryRow(sqlstr, id).Scan(&tr.ID, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.OutputEventID, &tr.JSONHeaders, &tr.Err)
+	err = db.QueryRow(sqlstr, id).Scan(&tr.ID, &tr.JSONHeaders, &tr.Flow, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.Node, &tr.Err)
 	if err != nil {
 		return nil, err
 	}
@@ -245,7 +324,7 @@ func TractorResultsByStartedAt(db XODB, startedAt time.Time) ([]*TractorResult, 
 
 	// sql query
 	const sqlstr = `SELECT ` +
-		`"id", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "output_event_id", "json_headers", "err" ` +
+		`"id", "json_headers", "flow", "event", "event_id", "parent_event_id", "started_at", "input", "finished_at", "output", "node", "err" ` +
 		`FROM "tractor_result" ` +
 		`WHERE "started_at" = $1`
 
@@ -265,7 +344,7 @@ func TractorResultsByStartedAt(db XODB, startedAt time.Time) ([]*TractorResult, 
 		}
 
 		// scan
-		err = q.Scan(&tr.ID, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.OutputEventID, &tr.JSONHeaders, &tr.Err)
+		err = q.Scan(&tr.ID, &tr.JSONHeaders, &tr.Flow, &tr.Event, &tr.EventID, &tr.ParentEventID, &tr.StartedAt, &tr.Input, &tr.FinishedAt, &tr.Output, &tr.Node, &tr.Err)
 		if err != nil {
 			return nil, err
 		}

@@ -134,10 +134,12 @@ func (c *Config) saveResult(start, stop time.Time, message, result []byte, messa
 		dbErr.Valid = true
 		dbErr.String = resErr.Error()
 	}
-
+	nodeName, _ := os.Hostname()
 	headersData, _ := json.Marshal(headers)
 	res := dbo.TractorResult{
 		Event:         event,
+		Node:          nodeName,
+		Flow:          c.Flow,
 		EventID:       messageId,
 		ParentEventID: sql.NullString{Valid: parentMessageId != "", String: parentMessageId},
 		FinishedAt:    stop,
